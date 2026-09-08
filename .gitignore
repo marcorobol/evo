@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+traces/
+reports/
+capabilities/generic-library.json
+capabilities/discovery-*.json
+work/repos/

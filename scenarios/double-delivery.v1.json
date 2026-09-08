@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "name": "double-delivery",
+  "description": "A parcel starts with the agent on a double-delivery tile.",
+  "agent": { "id": "agent", "name": "curriculum-agent", "x": 0, "y": 0, "score": 0 },
+  "tiles": [{ "x": 0, "y": 0, "type": "3" }],
+  "parcels": [{ "id": "parcel-1", "x": 0, "y": 0, "reward": 7 }]
+}

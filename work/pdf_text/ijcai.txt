@@ -1,0 +1,604 @@
+                                 Automated Software Evolution in BDI Agents:
+                                         Principles and Evaluation
+
+
+
+
+                               Abstract                                process. Its ultimate goal is to ensure long-term system via-      42
+                                                                       bility: modern software must evolve holistically across code,      43
+ 1        This paper presents automated software evolution             requirements, and context to maintain relevance. Far from          44
+ 2        through the three core principles of variation, selec-       being a reactive process, software evolution has become a          45
+ 3        tion, and inheritance, and shows how these princi-           cornerstone of modern engineering, fostering innovation,           46
+ 4        ples can be systematically applied across the func-          autonomy, and sustained adaptability.                              47
+ 5        tional layers of a BDI agent, namely knowledge
+ 6        representation, goal generation, and action execu-              Despite advances in adaptive and self-managing systems,         48
+
+ 7        tion. Building on our prior work on self-evolving            most approaches still depend on predefined requirements and        49
+
+ 8        BDI–LLM agents, we present a self-evolving agent             design assumptions. Even autonomous agents, though ca-             50
+
+ 9        architecture that enacts these principles at runtime         pable of reasoning and acting in dynamic contexts, remain          51
+
+10        and evaluate it in a dynamic multi-agent environ-            bound to specifications fixed at design time. They can adapt       52
+
+11        ment. In this setting, agents progressively discover         their behaviour but not evolve their own goals, reasoning,         53
+
+12        new goals, refine plans, and adapt their own code            or code—limiting true self-evolution in open environments.         54
+
+13        without explicit prior knowledge. The experimen-             Recent progress in Generative AI, particularly with LLMs,          55
+
+14        tal results highlight both the potential and the cur-        offers a way forward: by understanding context, generating         56
+
+15        rent limitations of using LLMs to support auto-              structured code, and reasoning about objectives, LLMs pro-         57
+
+16        mated software evolution, providing evidence to-             vide the basis for automating parts of the evolution process.      58
+
+17        ward agents capable of continuous adaptation in                 This paper builds upon the architecture for self-evolving       59
+
+18        complex and changing environments.                           BDI–LLM agents introduced in our earlier work [Y, 2026],           60
+                                                                       which served as a preliminary contribution focused on the          61
+                                                                       overall system design. While that work established the ar-         62
+19   1   Introduction                                                  chitectural foundations and illustrated the feasibility of inte-   63
+20   Software evolution has become a central concern in Software       grating BDI agents with LLMs, the present paper goes sig-          64
+21   Engineering (SE) as modern systems operate within dynamic         nificantly further by providing a formal and principled char-      65
+22   ecosystems shaped by machine learning, IoT, and cloud com-        acterization of self-evolving agents grounded in established       66
+23   puting [Bettini, 2015; Kabudi et al., 2021]. Originally lim-      Software Engineering concepts. In particular, we presents au-      67
+24   ited to code fixes and incremental updates [Lehman, 1980],        tomated software evolution in terms of the core principles of      68
+25   software evolution now addresses the rapid transformation of      variation, selection, and inheritance, and show how these          69
+26   technologies, infrastructures, and user needs, requiring sys-     mechanisms can be systematically applied across the three          70
+27   tems to both adapt and anticipate emerging challenges [Cheng      functional layers of a BDI agent: knowledge representation,        71
+28   et al., 2009]. Contemporary evolution increasingly unfolds at     goal generation and decision-making, and action execution.         72
+29   the requirements and environmental levels, ensuring align-        In this way, we show how self-evolution can be operational-        73
+30   ment with stakeholder objectives and compliance with ethical      ized at runtime, moving beyond architectural intuition toward      74
+31   and regulatory constraints. For example, healthcare systems       a reusable and analyzable engineering approach. We further         75
+32   must continuously evolve to integrate advances in medical re-     present a concrete implementation of a self-evolving BDI–          76
+33   search, adhere to new regulations, and accommodate novel          LLM agent—derived from the prototype originally intro-             77
+34   diagnostic practices [Davenport and Kalakota, 2019].              duced in [X, 2024]—and evaluate it in a dynamic multi-agent        78
+35      At the same time, emerging technologies introduce new          environment based on a collect-and-deliver game. In this set-      79
+36   challenges and opportunities. Intelligent systems demand          ting, agents autonomously discover goals, revise plans, and        80
+37   continuous updates to remain effective as datasets and op-        adapt their own code in response to environmental changes.         81
+38   erational contexts evolve [Bommasani, 2021]. Beyond code          Experimental results demonstrate that LLM-based prompting          82
+39   modification, evolution now entails refining internal logic and   enables agents to generate and enact novel behaviors, while        83
+40   capabilities through automated code generation, requirement       also revealing the current limitations of large language mod-      84
+41   analysis, and adaptive testing—accelerating the engineering       els as a foundation for fully autonomous software evolution.       85
+ 86      Overall, the paper contributes to bridging traditional soft-      based on a variant of ‘X’ 1 , which we use throughout the pa-          143
+ 87   ware engineering principles with emerging AI paradigms, of-          per to illustrate self-evolving software agents. The game is           144
+ 88   fering a concrete step toward systems capable of genuine self-       a multiplayer, grid-based environment in which agents col-             145
+ 89   directed growth. By grounding automated evolution in the             lect and deliver parcels while navigating tiles, obstacles, and        146
+ 90   structured reasoning framework of BDI agents and leverag-            competing agents. To create conditions that require self-              147
+ 91   ing LLMs as generative catalysts, we outline a pathway to-           evolution, we extend the game standard setting with addi-              148
+ 92   ward the next generation of intelligent, continuously evolving       tional dynamics that challenge the agent’s initial capabili-           149
+ 93   software systems.                                                    ties. Agents operate under limited movement capacity due               150
+                                                                           to battery consumption, requiring them to locate and use               151
+                                                                           recharge stations, and must deal with locked passages that can         152
+ 94   2   Background and Running Example                                   only be opened by discovering and using appropriate keys.              153
+ 95   Our work sits at the intersection of several research areas:         These constraints deliberately introduce situations in which           154
+ 96   BDI agent architectures, LLM-based autonomous agents,                pre-programmed behaviors are insufficient. At deployment,              155
+ 97   self-adaptive software. Classical BDI systems [Rao and               agents are only aware of basic game mechanics and can pur-             156
+ 98   Georgeff, 1995; Wooldridge and Jennings, 1995; Wooldridge,           sue elementary objectives such as navigation and parcel deliv-         157
+ 99   2000; Wooldridge, 2009] provide a robust framework for ra-           ery. As the environment unfolds, however, agents may need              158
+100   tional agency with beliefs, desires, and intentions, but they        to autonomously evolve new goals, knowledge structures, and            159
+101   rely on goals and behaviors that are specified prior to de-          strategies, for example by learning to conserve energy, ex-            160
+102   ployment. Recent work has demonstrated the potential of              plore the map to acquire keys, or adapt their behavior in re-          161
+103   LLMs for agent reasoning, including ReAct [Yao et al.,               sponse to competition from other agents.                               162
+104   2022], AutoGPT [Yang et al., 2023], and Reflexion [Shinn
+105   et al., 2023], which focus on task execution through complex         3    Software Evolution                                                163
+106   multi-turn prompting chains, external memory, and sophis-
+107   ticated orchestration frameworks. GPT-based programming              Software evolution traditionally concerns code and de-                 164
+
+108   framework like MetaGPT [Hong et al., 2023] incorporate au-           sign modifications [Fernandez-Ramil et al., 2006], involv-             165
+
+109   tomated iterative code refinement. Self-adaptive software            ing requirements analysis, architecture adjustment, imple-             166
+
+110   systems [Cheng et al., 2009; Salehie and Tahvildari, 2009;           mentation, testing, and maintenance [Lehman, 1980; Som-                167
+
+111   Brun et al., 2009; De Lemos et al., 2013] typically switch           merville, 2010; Pressman, 2005]. Despite mature itera-                 168
+
+112   between pre-configured variants or adjust parameters within          tive approaches [Boehm, 1988], traditional evolution remains           169
+
+113   fixed architectures using feedback loops and runtime models,         human-dependent and error-prone. By explicitly modeling                170
+
+114   operating within bounded design spaces.                              both the environment and the system, engineers can verify              171
+
+115      This paper builds on our previous work [Y, 2026], in              that the software will meet its requirements as long as the            172
+
+116   which we introduced a general architecture for self-evolving         underlying assumptions about the domain hold true. Let K               173
+
+117   software agents that integrates automated software evolu-            denote the domain knowledge or assumptions about the en-               174
+
+118   tion principles within a BDI architecture, enabling agents           vironment, S the formal specification of the software system,          175
+
+119   to evolve goals, reasoning, and actions autonomously. The            and R the requirements that the system must satisfy. Un-               176
+
+120   architecture is grounded in a classical BDI reasoning loop           der certain domain assumptions, specifications can be shown            177
+
+121   governing belief updates, desire deliberation, intention selec-      to satisfy the requirements, following the framework estab-            178
+
+122   tion, and plan execution in response to environmental per-           lished by Jackson [Jackson, 1995]. The relationship can be             179
+
+123   ceptions. This core mechanism is complemented by an in-              expressed as:                                                          180
+
+124   dependent Automated Evolution Module, which incorporates                                      K, S |= R
+125   an automated software evolution process triggered by emerg-          which reads: given the domain assumptions K and the sys-               181
+126   ing needs and opportunities. It enables the agent to self-           tem specification S, the requirements R are satisfied. This            182
+127   evolve across three key areas: (i) knowledge representation          enables systematic reasoning about change across the differ-           183
+128   and reasoning, (ii) goal generation and decision-making, and         ent elements of the system. In particular, if the knowledge            184
+129   (iii) execution of internal and external actions. By engaging        base K changes due to newly perceived environmental con-               185
+130   with an LLM, the evolution module allows the BDI agent to            straints, or if the requirements set R evolves in response to          186
+131   self-evolve, adopting methodologies of traditional software          stakeholder needs, the specification S must be revised ac-             187
+132   engineering. The automated evolution process is triggered            cordingly to preserve consistency. This perspective high-              188
+133   when the agent perceives data that cannot be interpreted with        lights the fundamental distinction between software adap-              189
+134   its current knowledge representation. New requirements are           tation and software evolution. In software adaptation, re-             190
+135   elicited, driving revisions across all three functional areas: (i)   quirements are assumed to remain fixed while system be-                191
+136   belief revision functions, predicates, and transformation rules      havior is adjusted at runtime [Lehman, 1980]. Such adapta-             192
+137   are extended, (ii) options for goal and intention selection are      tion is typically achieved through dynamic configuration and           193
+138   updated, actions are implemented, and planning strategies are        feedback control loops [De Lemos et al., 2013], and relies             194
+139   adjusted, finally (iii) execution strategies are updated to align    on predefined mechanisms that, while effective in expected             195
+140   with the revised capabilities, testing integration and retaining
+141   successful adaptations.                                                 1
+                                                                                X - omitted for double-blind review - is open source and avail-
+142      To evaluate our approach, we adopt a game-like scenario,          able at - omitted for double-blind review
+196   conditions, are inherently limited when confronted with un-        ability ensures the system explores a range of options for ad-      250
+197   foreseen situations [Oreizy et al., 1999; Garlan et al., 2004;     dressing new challenges [De Lemos et al., 2013].                    251
+198   McKinley et al., 2004].
+199      Software adaptation refers to a system whose specifica-                      Var(S, K ′ , R′ ) → {S1 , S2 , . . . , Sn }
+200   tion S is designed to satisfy a set of requirements R under a
+201   range of domain assumptions K, allowing it to operate cor-         Given changed assumptions K ′ and requirements R′ , vari-           252
+202   rectly across varying environmental conditions without alter-      ation generates candidate system specifications {Si } rep-          253
+203   ing R or S themselves. In this context, the requirements R         resenting alternative adaptations of S.        When our de-         254
+204   are defined to include adaptability, i.e., the ability to main-    livery agent first encounters the limited battery constraint,       255
+205   tain correct behavior as the environment changes within the        variation generates multiple candidate behaviors: {S1 :             256
+206   bounds of K. Thus, adaptation is achieved by ensuring that:        “recharge only when empty”, S2 : “recharge at 50%”, S3 :            257
+                                                                         “plan energy-efficient routes”}. Each candidate represents a        258
+                          ∀Ki ∈ K,      Ki , S |= R                      different approach to incorporating energy management.              259
+
+207   where K represents the set of all admissible domain assump-           Selection refers to the evaluation process where the system      260
+208   tions. For example, when the delivery agent encounter a            determines the effectiveness of proposed adaptations. Metrics       261
+209   temporary obstacle (e.g., another agent blocking its path), it     such as performance, resource utilization, and alignment with       262
+210   adapts by recalculating an alternative route. Requirements R       system goals are used to assess the success of each variation.      263
+211   (“deliver parcels”) remain unchanged; only path planning ad-       Only the most beneficial adaptations are retained, ensuring         264
+212   justs within S. The domain assumptions K include dynamic           that changes contribute positively to the system’s functional-      265
+213   obstacles, and the pathfinding algorithm handles such vari-        ity and resilience [Garlan et al., 2004].                           266
+214   ations. Once cleared, the agent may revert—no permanent
+215   modification occurs.                                                             Sel({S1 , . . . , Sn }, K ′ , R′ ) → S ∗
+216       In contrast, software evolution entails a more profound
+217   transformation. It is not limited to adjusting the software’s      Candidate specifications are evaluated with respect to              267
+218   behavior but extends to integrating new requirements that          whether they preserve the satisfaction relation K ′ , Si |= R′ .    268
+219   emerge from the environment or are specified by users. Un-         For example, the delivery agent evaluates each candidate            269
+220   like adaptation, evolution redefines the system’s objectives       strategy by simulating outcomes. S1 (“recharge only when            270
+221   over time, often introducing new capabilities. For example,        empty”) causes frequent immobilization. S2 (“recharge at            271
+222   in the delivery agent scenario, suppose the game introduces        50%”) avoids immobilization but wastes time. S3 (“plan              272
+223   batteries and limited movement capacity. The agent’s origi-        energy-efficient routes”) maximizes deliveries while main-          273
+224   nal specification S includes no energy management. When            taining energy. Selection evaluates each Si against R′              274
+225   the agent repeatedly exhausts its battery and becomes immo-        (“maintain sufficient energy”) and selects S ∗ = S3 .               275
+226   bilized, it cannot adapt within S—there is no behavior for this       Inheritance occurs when successful adaptations are inte-         276
+227   situation. Evolution occurs when the agent transforms S to         grated permanently into the system’s codebase or configura-         277
+228   S ′ , adding new requirements R′ (“maintain sufficient energy      tion. By retaining these changes, the system effectively builds     278
+229   to operate”) and updating K ′ to include battery mechanics.        a library of adaptive behaviors, enabling it to address similar     279
+230   The evolved agent incorporates energy-aware goals and ac-          challenges more efficiently in the future.                          280
+231   tions like “recharge at battery”—a fundamental change to the
+232   system specification.                                                                      Inh(S ∗ , S) → S ′
+233       Software evolution can be defined as a function that trans-
+234   forms an existing specification S into a new specification S ′ ,   The successful specification S ∗ is integrated into the baseline    281
+235   in response to changes in either the requirements R to R′ or       system S, yielding an evolved system S ′ . By construction,         282
+236   the domain assumptions K to K ′ . That is,                         if K ′ , S ∗ |= R′ , then also K ′ , S ′ |= R′ . In our scenario,   283
+                                                                         once the delivery agent validates S3 (“plan energy-efficient        284
+              E : (S, R′ , K ′ ) → S ′ such that K ′ , S ′ |= R′ .
+                                                                         routes”) as optimal, inheritance integrates this behavior into      285
+237      Adaptation modifies behavior within existing architectures      S ′ . Energy-aware route planning becomes a reusable mod-           286
+238   at runtime, while evolution entails deeper reengineering to        ule triggered automatically when battery is low. When               287
+239   meet new requirements [Pressman, 2005]. Together they bal-         encountering doors requiring keys, the agent inherits and           288
+240   ance stability and growth across the software lifecycle.           adapts the exploration strategy from energy management—             289
+                                                                         systematically searching for keys as it searched for batteries.     290
+241   3.1   Principles of automated software evolution                       Evolution is a transformation process E that adapts S in        291
+242   Automated software evolution can be characterized in terms         response to changes in K to K ′ or R to R′ . Such process           292
+243   of principles inspired by Darwinian evolution, where sys-          is characterized by three principles—variation, selection, and      293
+244   tems autonomously detect changes, generate adaptations, and        inheritance—that ensure the system maintains the satisfaction       294
+245   apply updates without human intervention [Lehman, 1980;            relation K ′ , S ′ |= R′ under evolving conditions. Thus, the       295
+246   Cheng et al., 2009].                                               full evolution process can be represented as the composition        296
+247      Variation in software systems arises when they au-              of three transformation operators:                                  297
+248   tonomously generate new solutions, behaviors, or functional-
+249   ities in response to changing operational contexts. This vari-                           E = Inh ◦ Sel ◦ Var
+                                                                                           ′
+298   Expanding this into its sequential steps, we obtain:                                SKR  , such that it can incorporate new environmental in-   343
+                                                                                          puts and update its reasoning capabilities:                 344
+                       Var(S, K ′ , R′ ) → {S1 , . . . , Sn }        candidate
+                                                                                                                    ′
+                                                                             (1)                            SKR −→ SKR .
+          Sel({S1 , . . . , Sn }, K ′ , R′ ) → S ∗                     optimal       2. Goal Generation and Decision-Making (GG): The                 345
+                                                                             (2)        agent can generate novel goals and reason about their         346
+
+                            Inh(S ∗ , S) → S ′                       integrated         relevance. In our scenario, when the delivery agent en-       347
+
+                                                                              (3)       counters a locked door, its existing goal “deliver parcel”    348
+                                                                                        becomes unachievable. Through GG evolution, it gener-         349
+299   We then define the evolution function as:                                         ates a new goal—“acquire key to open door”—and rea-           350
+
+                                                     ′   ′   ′   ′             ′        sons about its relationship to the original delivery goal.    351
+       E(S, K, R) := Inh(Sel(Var(S, K , R ), K , R ), S) := S                           The agent decides whether to pursue the key immedi-           352
+
+300   where E denotes the composition of the three transformations                      ately or defer delivery and mark the door for future ex-      353
+
+301   above. This definition ensures that, provided the new environ-                    ploration. The GG component evolves from its current          354
+                                                                                                                                          ′
+302   mental assumptions K ′ hold, the evolved system S ′ continues                     specification SGG to an updated specification SGG    , such   355
+
+303   to satisfy the new requirements R′ , that is, K ′ , S ′ |= R′ .                   that it can generate new goals and select intentions under    356
+                                                                                        the updated conditions:                                       357
+
+                                                                                                                     ′
+304   4     Self-Evolving Software Agents                                                                    SGG −→ SGG .
+305   Software agents are designed to autonomously perceive                          3. Execution of Internal and External Actions (EX):              358
+306   their environment, reason about changes, and act accord-                          The agent evolves its component responsible for exe-          359
+307   ingly [Franklin and Graesser, 1996; Luck et al., 2005]. This                      cuting internal updates and external actions that influ-      360
+308   marks a shift from static, rule-based systems to adaptive                         ence its environment. For instance, the delivery agent        361
+309   and self-managing ones capable of both reacting to and an-                        initially operates with a minimal action set, comprising      362
+310   ticipating change [Müller and Fischer, 2014]. Deep Neu-                          basic movement and parcel-handling actions. Through           363
+311   ral Networks enable new forms of adaptation by combining                          EX evolution, it synthesizes a new “recharge” action          364
+312   rule-based reliability with learning flexibility [Whittle et al.,                 when encountering battery objects, which is fully inte-       365
+313   2011]. While challenges remain in managing complexity and                         grated into the execution framework by consuming time,        366
+314   verifying stability [Cheng et al., 2009], we describe how au-                     updating battery-related beliefs, and interleaving with       367
+315   tomated evolution principles can be instantiated within agent                     movement actions. More precisely, the EX component            368
+316   architectures, using the BDI model as a reference framework.                      evolves from its current specification SEX to an updated      369
+                                                                                                        ′
+                                                                                        specification SEX  , such that it can execute updated ac-     370
+317   4.1     Evolution within the BDI Model                                            tions under the evolved system:                               371
+
+318   Within the BDI model [Rao and Georgeff, 1995], software                                                              ′
+                                                                                                            SEX −→        SEX .
+319   evolution can be realized by leveraging the agent’s inherent
+320   structure for reasoning and decision-making. The model or-                    4.2    Evolution Principles within the BDI Model                  372
+321   ganizes behavior around three key components—beliefs, rep-
+                                                                                    The three evolution principles govern the autonomous trans-       373
+322   resenting the agent’s knowledge of the environment; desires,
+                                                                                    formation of the agent architecture across BDI functional ar-     374
+323   expressing its goals; and intentions, defining the plans to
+                                                                                    eas, each realized through specialized mechanisms enabling        375
+324   achieve them [Rao and Georgeff, 1995; Wooldridge and Jen-
+                                                                                    self-directed evolution.                                          376
+325   nings, 1995; Wooldridge, 2009]. These elements enable au-
+                                                                                       Variation occurs when the agent restructures or expands        377
+326   tomated software evolution: the agent can revise knowledge,
+                                                                                    its knowledge base to incorporate new facts, rules, or rep-       378
+327   generate new goals, and modify actions in response to chang-
+                                                                                    resentations obtained from environmental observations. In         379
+328   ing contexts. This enables a holistic form of self-evolution,
+                                                                                    the delivery scenario, variation manifests across BDI com-        380
+329   where the system continuously develops across three inter-
+                                                                                    ponents. For KR: alternative battery state representations        381
+330   connected dimensions:
+                                                                                    (continuous percentage, discrete levels, predicted time until     382
+331       1. Knowledge Representation and Reasoning (KR):                           depletion). For GG: when discovering a locked door, multi-        383
+332          The agent evolves its component responsible for repre-                 ple goal hierarchies (“find key then deliver”, “mark door and     384
+333          senting knowledge and refining reasoning processes. In                 find alternative route”, “abandon delivery”). For EX: dif-        385
+334          our delivery scenario, the agent initially perceives bat-              ferent “recharge” implementations (move to nearest battery        386
+335          tery level as an opaque numeric value. Through KR                      immediately vs. plan route passing batteries en route).           387
+336          evolution, it develops a new belief structure representing                Selection evaluates competing knowledge representations        388
+337          “energy state” with categories (“critical”, “moderate”,                or reasoning models according to their explanatory adequacy,      389
+338          “sufficient”) and infers relationships between battery                 consistency, and predictive accuracy. The agent selects goals     390
+339          level, movement cost, and distance to recharge stations.               or plans that optimize expected utility given the current con-    391
+340          This enables proactive decision-making rather than reac-               text, ensuring alignment with higher-level objectives. In our     392
+341          tive immobilization. The KR component evolves from                     scenario, the delivery agent applies selection mechanisms         393
+342          its current specification SKR to an updated specification              across its architectural layers. At the KR level, alternative     394
+395   battery representations are evaluated based on their ability to       BDI Components and Data Structures. The core BDI com-                 439
+396   predict imminent immobilization, leading to the selection of          ponents are implemented as mutable data structures dynam-             440
+397   discrete energy levels over continuous values for improved            ically extended by the LLM. The Belief Set is a key-value             441
+398   efficiency. At the GG level, the agent evaluates competing            store that maintains all environmental knowledge, with its            442
+399   goal hierarchies when dealing with locked doors by simu-              structure decided by the LLM itself. Desires and intentions           443
+400   lating their expected outcomes: pursuing a strategy such as           are stored as structured objects, containing textual descrip-         444
+401   find key then deliver” maximizes long-term parcel collection,         tions, associated functions, and trigger mechanisms. Each             445
+402   whereas alternatives like mark the door and seek a different          element of the BDI is continuously updated as new data is             446
+403   route” may be preferable when keys are scarce. At the EX              perceived or new goals are generated. This design allows the          447
+404   level, different implementations of the recharge action are as-       agent to evolve its reasoning structures.                             448
+405   sessed based on empirical performance, resulting in a prefer-         Perception Unit. When the agent perceives unfamiliar data             449
+406   ence for route-efficient recharging behaviors.                        that cannot be processed with its current knowledge, it ini-          450
+407      Inheritance integrates validated representations or reason-        tiates a prompting session with the LLM to generate a per-            451
+408   ing patterns into the persistent knowledge base, allowing cu-         ception function capable of integrating the new information.          452
+409   mulative learning. For example, as the delivery agent evolves,        Generated functions are stored and reused, with invalid ones          453
+410   successful adaptations are inherited across contexts. When            being discarded and replaced automatically. The perception            454
+411   validating route-efficient recharging (an EX adaptation), this        unit operates as a continuous loop that senses the environ-           455
+412   action pattern is permanently added to the behavioral library.        ment, generates perception functions through the LLM when             456
+413   When encountering keys and doors, the agent inherits the sys-         encountering unfamiliar data (Prompt P1), and updates the             457
+414   tematic exploration strategy from battery hunting and adapts          belief set accordingly.                                               458
+415   it to key searching. Similarly, at KR: the predictive model           Control Unit. The Control Unit governs goal generation                459
+416   for battery depletion can be reused to estimate time to reach         and adaptive behavior execution. When new beliefs are in-             460
+417   a key location. At GG: the successful goal hierarchy “find            tegrated, the LLM proposes relevant long-term goals aligned           461
+418   tool → use tool → achieve original goal” becomes a reusable           with the current environmental context. It maintains sets of          462
+419   template for future multi-step problems.                              desires (D), intentions (I), and trigger functions (DT F ) in         463
+420      Let S = {SKR , SGG , SEX } denote the architectural spec-          a behavioral library, to reduce the dependency on real-time           464
+421   ifications corresponding to the three areas of KR, GG, and            LLM calls. At each cycle, it checks if existing desires can           465
+422   EX. Given the new environment assumptions K ′ and sys-                be activated through their triggers; if none can, it prompts          466
+423   tem requirements R′ , the evolutionary process acts on each           the LLM to propose new desires and corresponding inten-               467
+424   component as:                                                         tions. For each active goal, the agent generates, validates,          468
+
+                      def
+                                                                          executes, and evaluates short-term intentions iteratively; suc-       469
+      E(S, K ′ , R′ ) = Inh Sel({SKR ′      ′
+                                         , SGDM     ′
+                                                 , SEX }, K ′ , R′ ), S ;   cessful intentions are added to the long-term goal; once the          470
+                                                                            goal is achieved, a trigger function is synthesized to detect         471
+425   where
+                                                                            similar future contexts automatically. Algorithm 1 outlines a         472
+            ′     ′     ′
+          {SKR , SGG , SEX } = Var(S, K ′ , R′ )                            simplified control cycle combining traditional BDI reasoning          473
+                                    [                                       with LLM-guided evolution through iterative goal formation,           474
+                             =                   Var(Si , K ′ , R′ )
+                                                                            learning, and adaptation.                                             475
+                                   i∈{KR,GG,EX}
+                                                                            Prompting Strategy Interaction with the LLM is orga-                  476
+426   generates candidate specifications for each architectural area;       nized through numbered prompts, each composed of a con-               477
+               Sel({Si′ }, K ′ , R′ ) = arg max
+                                             ′
+                                                U (Si′ , K ′ , R′ )         text (instruction template) and a question (task-specific re-         478
+                                              Si                            quest). All LLM responses are returned in JSON format                 479
+
+427   selects those variants that maximize an architectural utility         for consistent parsing 3 . In the delivery scenario, when             480
+
+428   function U reflecting reasoning accuracy, decision optimality,        the agent encounters a locked door, it perceives a door               481
+
+429   or execution efficiency; and                                          object with unfamiliar attributes (e.g., {locked:true,                482
+
+                                      ∗            ′                        required key:‘‘red key’’}). Using P1 the LLM                          483
+                               Inh(S , S) = S
+                                                                            generates a perception function for the door. A failed pas-           484
+430   integrates successful adaptations into the persistent system          sage attempt triggers C1 (Desire Generation), proposing “ac-          485
+431   specification.                                                        quire the red key to open the door”; C2 (Intention Creation)          486
+                                                                            produces a search plan; if this fails, C3 (Intention Repair) re-      487
+432   5    Implementation of a Self-Evolving Agent                          vises the strategy. Once the key is obtained, C4/C5 evaluate          488
+
+433   This section presents a practical implementation 2 of the BDI-        success and C6 generates a trigger for future similar situa-          489
+
+434   LLM model for self-evolving agents. The implementation                tions.                                                                490
+
+435   builds upon the architectural design introduced in our previ-
+436   ous work [Y, 2026] and is derived from the prototype devel-           6   Experimental Evaluation                                           491
+
+437   oped in [X, 2024]. It comprises two main components that              The implementation, derived from the prototype developed              492
+438   work in synergy: the Perception Unit and the Control Unit.            in [X, 2024], was validated in a game-like environment where          493
+
+          2                                                                     3
+            The implementation is available at: omitted for double-blind          Prompt templates are available at: - omitted for double-blind
+      review                                                                review
+         Algorithm 1: Control Unit Algorithm
+          Input: Beliefs B, Desires D, Intentions I, Triggers
+                 DT F
+       1 M ← ∅
+       2 while True do
+        3    D′ ← checkDesiresT riggers(D, DT F )
+        4    if D′ then
+        5        P ← getP lan(D′ , B); E ← execute(P )
+        6        if ¬desireIsSatisf ied(D′ , B) // Prompt
+                   C5
+        7         then
+        8            D ← removeDesire(D, D′ )
+        9        end
+      10     end
+      11     else
+      12         M ← eraseM emory();                                  Figure 1: Overview of Desires generated across the 8 typology of
+                   D′ ← generateN ewDesire(D, B)                      experiments.
+                   // Prompt C1
+      13         while True do
+      14             I ′ ← genIntention(D′ , I, B, M )                   The methodology consists of a total of 24 experiments,          510
+
+                       // Prompts C2,C3                               divided in 8 typologies with an increasing complexity of the       511
+
+      15             P ← getP lan(I ′ , B); E = execute(P )           scenario and of the agent behavioral model. Starting from the      512
+
+      16             evaluation, M ′ ←                                most simple approach, a one-time execution of the generated        513
+
+                       evaluateExecution(I ′ , P, E, M )              desire, to the most complete behavior where the agent may          514
+
+                       // Prompts C4,C7                               reconsider previously generated solutions.                         515
+
+      17             if evaluation then                               Analysis Criteria and Results Evaluation We evaluated              516
+       18                M ← eraseM emory()                           both external behavior (elementary objectives: moving, pick-       517
+       19                if desireIsSatisf ied(D′ , B)                ing up and delivering parcels, collecting keys, opening doors)     518
+                           // Prompt C5                               and internal functioning (desire generation and execution,         519
+       20                 then                                        triggerability).                                                   520
+       21                    DT F ′ = genT riggerF n(D′ , B)
+                                                                         Figure 1 reports on the 88 desires that were generated          521
+                              // PromptC6
+                                                                      across all experiments in the eight typologies of increas-         522
+       22                    D, DT F ← add(D′ , DT F ′ );
+                                                                      ing complexity. Most of the desires generated do not even          523
+                              break
+                                                                      exit the generation phase successfully and are classified as       524
+       23                end                                          Not satisfied (37.5% of the total). After a desire is              525
+      24             end                                              evaluated as Satisfied, it is very likely that their trig-         526
+      25         end                                                  ger function is generated correctly, therefore falling in the      527
+      26     end                                                      Triggerable category (81.8% of the Satisfied). Out                 528
+      27 end                                                          of the Triggerable desires, considering only typologies 5          529
+                                                                      to 8, 90.5% of desires were actually triggered but only 58.3%      530
+                                                                      of those were evaluated as Still Triggerable After the execu-      531
+
+494   agents must collect and deliver parcels while adapting to dy-   tion. This means that only 11.3% of the total desires gener-       532
+
+495   namic conditions. Evolving agents were initially unaware of     ated were proven to work even after their generation phase.        533
+
+496   the game itself, except a textual description of the game and   During the experiments, the agent generated 293 intentions         534
+
+497   the APIs to play. The experiments tested the agent’s ability    across the eight typologies of experiments with increasing         535
+
+498   to discover new goals, generate appropriate plans, and learn    complexity. Out of these, only 76 (25.9%) were generated           536
+
+499   from experience.                                                correctly and only 59 among those (20.1% of the total) were        537
+                                                                      still executable at the end of the experiment. The success         538
+
+500   Experiment setup The testing environment is based on            rate decreased as the environment’s complexity increased, re-      539
+
+501   a variant of the multiplayer web-based collect-and-deliver      vealing that the agent struggles to generalize across dynamic      540
+
+502   game, based on ‘X’ and extended with additional game dy-        contexts.                                                          541
+
+503   namics (see Section 2). The agent implementation is entirely       The results confirm that even when starting from minimal        542
+504   written in Python and follows a multithreaded design, allow-    prior knowledge and a purely textual description of their en-      543
+505   ing asynchronous operation where the agent can perceive and     vironment, the agents were able to progressively generate be-      544
+506   act simultaneously. Interaction with the LLM is managed         liefs, formulate new desires, and synthesize executable inten-     545
+507   through the GPT-4o API by OpenAI, offering advanced mul-        tions without external supervision. To evaluate the qualita-       546
+508   timodal reasoning and code-generation capabilities [OpenAI,     tive nature of the generated solutions, we classified them into    547
+509   2024].                                                          three categories according to their adaptability and reason-       548
+549   ing complexity: Adaptive solutions (generalizable, adapt to       7   Discussion and Conclusions                                    574
+550   the context), Grounded solutions (functional within the con-
+551   text but lacking generalization), and Predetermined solutions     The paper presents a characterization of automated software       575
+
+552   (ad hoc responses). However, we discovered a predominance         evolution grounded in classical Software Engineering princi-      576
+
+553   of grounded and predetermined solutions over adaptive ones,       ples. We have shown how the principles of variation, selec-       577
+
+554   which suggests that while the agent can autonomously pro-         tion, and inheritance systematically map onto the functional      578
+
+555   pose and satisfy new goals, its reasoning remains tied to im-     layers of a BDI agent, enabling agents to autonomously revise     579
+
+556   mediate environmental feedback and LLM intervention.              requirements, synthesize code, and integrate new functional-      580
+                                                                        ities without external supervision. The empirical validation      581
+          Table 1: Evolutionary Principles in Experimental Results      conducted in a dynamic multi-agent environment confirms           582
+                                                                        the feasibility of this approach: agents progressively discover   583
+
+       Evolutionary Observation in the Agent’s Behavior                 new goals, refine their reasoning strategies, and evolve their    584
+
+       Principle    and Experimental Outcomes                           behavior over time.                                               585
+                                                                           The proposed self-evolving agents differ from recent LLM-      586
+       Variation       Evident through the continuous gen-              based agentic AI systems in their underlying design and ob-       587
+                       eration of new desires and intentions            jectives. While both leverage generative capabilities, agentic    588
+                       (293 intentions and 88 desires created).         AI systems primarily emphasize user interaction and ad hoc        589
+                       The agent explores a wide behavioral             problem solving through continuous prompting, and typically       590
+                       space via LLM-driven code synthesis,             operate within predefined requirements. In contrast, the self-    591
+                       producing diverse—though often redun-            evolving agents considered in this work are designed not only     592
+                       dant—solutions.                                  to adapt their behavior but also to revise their own require-     593
+       Selection       Present but limited. Only 25.9% of inten-        ments over time, guided by a structured reasoning frame-          594
+                       tions and 32.3% of desires were validated        work such as BDI. This separation between internal reason-        595
+                       as functional. The selection process oc-         ing processes and external action execution results in more       596
+                       curs through evaluation prompts, filtering       structured and explainable behavior, setting these agents apart   597
+                       out non-executable or failed solutions, yet      from systems that rely solely on generative or learning-based     598
+                       without quantitative reinforcement or ex-        responses. Understanding this distinction is essential for ad-    599
+                       plicit fitness-based optimization.               vancing AI systems that can autonomously redefine goals and       600
+       Inheritance     Partially observed. Some intentions and          strategies in complex, changing environments.                     601
+                       perception functions were reused in later           The practical implementation also revealed key challenges      602
+                       goals, but the lack of true parameter in-        in achieving full autonomy: computational overhead from           603
+                       heritance or code adaptation restricted cu-      frequent LLM queries, the need to ensure code correctness         604
+                       mulative evolution. Behaviors were re-           in self-generated functions, and the current dependence on        605
+                       generated rather than genuinely refined          external model availability. Addressing these limitations will    606
+                       across iterations.                               require local learning mechanisms, reinforcement-based self-      607
+       Emergent        Weak emergence of adaptive reasoning.            evaluation, and strategies to improve efficiency and long-term    608
+       Behavior        While a few solutions showed predictive          consistency. Despite these constraints, the architecture pro-     609
+                       or proactive behaviors (e.g., approaching        vides a concrete step toward autonomous systems capable of        610
+                       a spawn zone before object appearance),          self-directed growth and continuous improvement, bridging         611
+                       these remained exceptions rather than sys-       traditional software engineering and emerging AI paradigms.       612
+                       temic traits.                                       Future work will focus on enhancing local learning mech-       613
+                                                                        anisms, reducing dependency on external models, and intro-        614
+                                                                        ducing reinforcement-based self-evaluation to improve con-        615
+557   Evolutionary Interpretation of Results The experiments
+                                                                        sistency and resilience. We also plan to investigate collec-      616
+558   can be interpreted through the three evolutionary principles:
+                                                                        tive evolution in multi-agent systems, where agents cooperate     617
+559   variation where each new desire or intention adds to the be-
+                                                                        and exchange evolved capabilities. Overall, this research pro-    618
+560   havioral pool, selection where successful goals validate func-
+                                                                        vides a concrete step toward autonomous software systems          619
+561   tional behaviors, and inheritance where the agent reuses pre-
+                                                                        capable of continuous self-improvement, bridging traditional      620
+562   viously generated code. Table 1 summarizes these principles.
+                                                                        software engineering with the emerging paradigm of agentic,       621
+563      Overall, the experiments demonstrate a preliminary form
+                                                                        self-evolving AI.                                                 622
+564   of artificial evolution, where the principles of variation and
+565   selection are effectively realized. However, inheritance re-
+566   mains largely limited, as the agent tends to re-discover rather   References                                                        623
+567   than refine its behaviors. Our use of single-turn prompts aims    [Bettini, 2015] L. Bettini. Implementing Domain-Specific          624
+568   to evaluate the feasibility of autonomous evolution without
+                                                                          Languages with Xtext and Xtend. Packt Publishing, Birm-         625
+569   complex orchestration, isolating the BDI architecture’s con-
+                                                                          ingham, UK, 2015.                                               626
+570   tribution. Future work incorporating Retrieval-Augmented
+571   Generation (RAG) [Lewis et al., 2020], memory-augmented           [Boehm, 1988] B. W. Boehm. A spiral model of software             627
+572   architectures, or self-debugging loops could enhance refine-        development and enhancement. ACM SIGSOFT Software               628
+573   ment and inheritance.                                               Engineering Notes, 11(4):14–24, 1988.                           629
+630   [Bommasani, 2021] R. et al. Bommasani. On the oppor-                Goyal, Heinrich Küttler, Mike Lewis, Wen-tau Yih, Tim         685
+631      tunities and risks of foundation models. arXiv preprint          Rocktäschel, et al. Retrieval-augmented generation for        686
+632      arXiv:2108.07258, page e220119, 2021.                            knowledge-intensive nlp tasks. Advances in neural infor-       687
+
+633   [Brun et al., 2009] Yuriy Brun, Giovanna Di Marzo Seru-             mation processing systems, 33:9459–9474, 2020.                 688
+
+634      gendo, Cristina Gacek, Holger Giese, Holger Kienle,           [Luck et al., 2005] Michael Luck, Peter McBurney, Onn             689
+635      Marin Litoiu, Hausi Müller, Mauro Pezzè, and Mary              Shehory, and Steve Willmott. Agent Technology: Comput-         690
+636      Shaw. Engineering self-adaptive systems through feed-            ing as Interaction (a roadmap for agent based computing).      691
+637      back loops. pages 48–70, 2009.                                   University of Southampton, Southampton, UK, 2005.              692
+
+638   [Cheng et al., 2009] B. H. Cheng, H. Giese, P. Inverardi, and    [McKinley et al., 2004] P. K. McKinley, S. M. Sadjadi, E. P.      693
+639      J. Magee. Software engineering for self-adaptive sys-            Kasten, and B. H. C. Cheng. Composing adaptive soft-           694
+640      tems: A research roadmap. Software Engineering for Self-         ware. IEEE Computer, 37(7):56–64, 2004.                        695
+641      Adaptive Systems, pages 1–26, 2009.
+                                                                       [Müller and Fischer, 2014] Jörg P. Müller and Klaus Fischer.   696
+642   [Davenport and Kalakota, 2019] T. H. Davenport and                  Application impact of multi-agent systems and technolo-        697
+643      R. Kalakota. The potential for artificial intelligence in        gies: A survey. In Agent-Oriented Software Engineering:        698
+644      healthcare. Future Healthcare Journal, 6(2):94–98, 2019.         Reflections on Architectures, Methodologies, Languages,        699
+645   [De Lemos et al., 2013] Rogério De Lemos, Holger Giese,            and Frameworks, pages 27–53. Springer, Berlin, Heidel-         700
+646      Hausi A Müller, Mary Shaw, Jesper Andersson, Marin              berg, 2014.                                                    701
+647      Litoiu, Bradley Schmerl, Gabriel Tamura, Norha M Vil-         [OpenAI, 2024] OpenAI. Gpt-4o. https://openai.com/index/          702
+648      legas, Thomas Vogel, et al. Software engineering for self-       hello-gpt-4o, 2024. Accessed October 2025.                     703
+649      adaptive systems: A second research roadmap. In Soft-
+650      ware Engineering for Self-Adaptive Systems II: Interna-       [Oreizy et al., 1999] P. Oreizy, N. Medvidovic, and R. N.         704
+
+651      tional Seminar, Dagstuhl Castle, Germany, October 24-            Taylor. Architecture-based runtime software evolution. In      705
+
+652      29, 2010 Revised Selected and Invited Papers, pages 1–32.        Proceedings of the 20th International Conference on Soft-      706
+
+653      Springer, 2013.                                                  ware Engineering, pages 177–186, Kyoto, Japan, 1999.           707
+                                                                          IEEE.                                                          708
+654   [Fernandez-Ramil et al., 2006] Juan Fernandez-Ramil, De-
+655      wayne Perry, and Nazim H. Madhavji, editors. Software         [Pressman, 2005] R. S. Pressman. Software Engineering: A          709
+
+656      Evolution and Feedback: Theory and Practice. Wiley,              Practitioner’s Approach. McGraw-Hill, New York, 6th            710
+
+657      Chichester, 2006.                                                edition, 2005.                                                 711
+
+658   [Franklin and Graesser, 1996] S. Franklin and A. Graesser.       [Rao and Georgeff, 1995] A. S. Rao and M. P. Georgeff. Bdi        712
+659      Is it an agent, or just a program?: A taxonomy for au-           agents: From theory to practice. In Proceedings of the         713
+660      tonomous agents. In Proceedings of the International             First International Conference on Multi-Agent Systems          714
+661      Workshop on Agent Theories, Architectures, and Lan-              (ICMAS), pages 312–319, San Francisco, CA, USA, 1995.          715
+662      guages, pages 21–35, Berlin, Heidelberg, 1996. Springer.         MIT Press.                                                     716
+
+663   [Garlan et al., 2004] D. Garlan, S. Cheng, and A. Huang.         [Salehie and Tahvildari, 2009] M. Salehie and L. Tahvildari.      717
+664      Software architecture-based self-adaptation. ACM SIG-            Self-adaptive software: Landscape and research chal-           718
+665      SOFT Software Engineering Notes, 30(4):1–7, 2004.                lenges. ACM Transactions on Autonomous and Adaptive            719
+
+666   [Hong et al., 2023] Sirui Hong, Mingchen Zhuge, Jonathan            Systems (TAAS), 4(2):1–42, 2009.                               720
+
+667      Chen, Xiawu Zheng, Yuheng Cheng, Jinlin Wang, Ceyao           [Shinn et al., 2023] N. Shinn, F. Cassano, A. Gopinath,           721
+668      Zhang, Zili Wang, Steven Ka Shing Yau, Zijuan Lin, et al.        K. Narasimhan, and S. Yao. Reflexion: Language agents          722
+669      Metagpt: Meta programming for a multi-agent collabora-           with verbal reinforcement learning. In Advances in Neural      723
+670      tive framework. In The Twelfth International Conference          Information Processing Systems (NeurIPS), 2023.                724
+671      on Learning Representations, 2023.
+                                                                       [Sommerville, 2010] I. Sommerville. Software Engineering.         725
+672   [Jackson, 1995] M. Jackson. Software Requirements and               Addison-Wesley, Boston, 9th edition, 2010.                     726
+673      Specifications: A Lexicon of Practice, Principles and Prej-
+674      udices. ACM Press/Addison-Wesley, New York, NY,               [Whittle et al., 2011] J. Whittle, J. Hutchinson, and             727
+
+675      USA, 1995.                                                       M. Rouncefield. The state of practice in model-driven          728
+                                                                          engineering. IEEE Software, 28(3):22–28, 2011.                 729
+676   [Kabudi et al., 2021] Tumaini Kabudi, Ilias Pappas, and
+677      Dag Håkon Olsen. Ai-enabled adaptive learning systems:       [Wooldridge and Jennings, 1995] M. Wooldridge and N. R.           730
+
+678      A systematic mapping of the literature. Computers and            Jennings. Intelligent agents: Theory and practice. Knowl-      731
+
+679      education: Artificial intelligence, 2:100017, 2021.              edge Engineering Review, 10(2):115–152, 1995.                  732
+
+680   [Lehman, 1980] M. M. Lehman. Programs, life cycles, and          [Wooldridge, 2000] M. Wooldridge. Reasoning About Ra-             733
+
+681      laws of software evolution. Proceedings of the IEEE,             tional Agents. MIT Press, 2000.                                734
+
+682      68(9):1060–1076, 1980.                                        [Wooldridge, 2009] Michael Wooldridge. An Introduction to         735
+683   [Lewis et al., 2020] Patrick Lewis, Ethan Perez, Aleksan-           MultiAgent Systems. John Wiley & Sons, Chichester, UK,         736
+684      dra Piktus, Fabio Petroni, Vladimir Karpukhin, Naman             2nd edition, 2009.                                             737
+738   [X, 2024] X. Omitted for double-blind review. Master’s the-
+739      sis, 2024.
+740   [Y, 2026] Y. Omitted for double-blind review. 2026.
+741   [Yang et al., 2023] Hui Yang, Sifu Yue, and Yunzhong He.
+742     Auto-gpt for online decision making: Benchmarks and ad-
+743     ditional opinions. arXiv preprint arXiv:2306.02224, 2023.
+744   [Yao et al., 2022] Shunyu Yao, Jeffrey Zhao, Dian Yu, Nan
+745     Du, Izhak Shafran, Karthik R Narasimhan, and Yuan Cao.
+746     React: Synergizing reasoning and acting in language mod-
+747     els. In Proceedings of the International Conference on
+748     Learning Representations (ICLR), 2022.
+

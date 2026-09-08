@@ -1,0 +1,19 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "lmstudio/qwen/qwen3.8-27b",
+  "provider": {
+    "lmstudio": {
+      "options": {
+        "baseURL": "http://127.0.0.1:1234/v1",
+        "apiKey": "{env:LMSTUDIO_API_KEY}"
+      },
+      "models": {
+        "qwen/qwen3.8-27b": {
+          "compatibility": {
+            "reasoningField": "reasoning_content"
+          }
+        }
+      }
+    }
+  }
+}

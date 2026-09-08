@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "name": "detour-delivery",
+  "description": "A wall blocks the direct route to the parcel, requiring a detour.",
+  "agent": { "id": "agent", "name": "curriculum-agent", "x": 0, "y": 0, "score": 0 },
+  "tiles": [
+    { "x": 0, "y": 0, "type": "2" },
+    { "x": 1, "y": 0, "type": "0" },
+    { "x": 2, "y": 0, "type": "1" },
+    { "x": 0, "y": 1, "type": "1" },
+    { "x": 1, "y": 1, "type": "1" },
+    { "x": 2, "y": 1, "type": "1" }
+  ],
+  "parcels": [{ "id": "parcel-1", "x": 2, "y": 0, "reward": 10 }]
+}

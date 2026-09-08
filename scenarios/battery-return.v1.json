@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "name": "battery-return",
+  "description": "The agent must recharge before collecting a distant parcel and returning to deliver it.",
+  "agent": { "id": "agent", "name": "curriculum-agent", "x": 0, "y": 0, "score": 0 },
+  "initialEnergy": 4,
+  "energyCost": 1,
+  "tiles": [
+    { "x": 0, "y": 0, "type": "2" },
+    { "x": 1, "y": 0, "type": "1" },
+    { "x": 2, "y": 0, "type": "1" }
+  ],
+  "batteries": [{ "x": 1, "y": 0 }],
+  "parcels": [{ "id": "parcel-1", "x": 2, "y": 0, "reward": 10 }]
+}

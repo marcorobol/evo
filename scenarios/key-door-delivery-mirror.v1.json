@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "name": "key-door-delivery-mirror",
+  "description": "A mirrored key-door delivery episode; the required movement direction is left rather than right.",
+  "agent": { "id": "agent", "name": "validator-agent", "x": 2, "y": 0, "score": 0 },
+  "initialEnergy": 10,
+  "energyCost": 1,
+  "tiles": [
+    { "x": 0, "y": 0, "type": "2" },
+    { "x": 1, "y": 0, "type": "3" },
+    { "x": 2, "y": 0, "type": "3" }
+  ],
+  "keys": [{ "x": 2, "y": 0 }],
+  "doors": [{ "x": 1, "y": 0 }],
+  "parcels": [{ "id": "parcel-1", "x": 1, "y": 0, "reward": 10 }]
+}

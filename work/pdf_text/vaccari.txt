@@ -1,0 +1,2539 @@
+  Department of Information Engineering and Computer Science
+
+                        Master’s Degree in
+                  Artificial Intelligence Systems
+
+
+
+
+                      Final Dissertation
+
+
+
+Self-Evolving Software Agents: An
+       LLM-Based Approach
+
+ Supervisor                                             Student
+Paolo Giorgini                                      Francesco Vaccari
+Marco Robol
+
+
+
+
+                    Academic year 2023/2024
+                  Acknowledgements
+
+
+
+
+...thanks to...
+Contents
+
+Abstract                                                                                                  2
+
+1 Introduction                                                                                            3
+
+2 Background                                                                                               5
+  2.1 Software Evolution . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .       5
+  2.2 Autonomous Software Agents . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .           6
+  2.3 BDI Model . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .        7
+  2.4 Large Language Models . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .          8
+      2.4.1 Applications of LLMs . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .           8
+  2.5 Self-Evolving Software Agent . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .        11
+
+3 Architecture                                                                                            12
+  3.1 Perception Unit . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .     13
+  3.2 Control Unit . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .      14
+  3.3 Implementation Details . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .        16
+      3.3.1 BDI Components . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .          16
+      3.3.2 Desire Outcomes during Generation and Triggering . . . . . . . . . . . . . . . .              19
+      3.3.3 Intention Outcomes during Generation and Triggering . . . . . . . . . . . . . .               19
+      3.3.4 Prompting the LLM . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .           22
+      3.3.5 About the environment-agnosticism of the agent . . . . . . . . . . . . . . . . .              24
+      3.3.6 Architecture Configurations . . . . . . . . . . . . . . . . . . . . . . . . . . . . .         25
+
+4 Experiments                                                                                             26
+  4.1 Environment . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .       26
+  4.2 Methodology . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .       27
+  4.3 Results . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .   28
+      4.3.1 Results of the Evolution Process . . . . . . . . . . . . . . . . . . . . . . . . . .          28
+      4.3.2 Analysis of Desires . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .       32
+      4.3.3 Quantitative Analysis of Intentions . . . . . . . . . . . . . . . . . . . . . . . . .         35
+      4.3.4 Qualitative Analysis of Intentions . . . . . . . . . . . . . . . . . . . . . . . . . .        38
+      4.3.5 Analysis of Intentions With Calls . . . . . . . . . . . . . . . . . . . . . . . . . .         55
+
+5 Conclusion                                                                                              57
+
+Bibliography                                                                                              59
+
+
+
+
+                                                     1
+Abstract
+Software evolution involves adapting systems to new requirements, introducing functionalities that
+are fundamentally new and that extend the capabilities of the system. Automating this process holds
+great potential, reducing the need of human expertise and improving scalability. Recent advancements
+in Large Language Models (LLMs) seem to be promising in achieving such automation, as they are
+able to reason and generate code. This thesis explores the development of an autonomous software
+agent capable of evolving to address new self-proposed requirements in a dynamic environment. Using
+a BDI-based architecture adapted for the use of LLMs, the agent can identify, define, and implement
+new goals, learning how to reach them over time. The proposed framework automates tasks such as
+knowledge integration, goal generation, and plan execution, leveraging the LLM to guide its software
+evolution process. The agent’s capabilities were tested in a game-like environment, with the main
+purpose of collecting and delivering parcels. Results indicate partial success, with the agent managing
+to generate and achieve goals but remaining dependent on the LLM. The architecture proposed is an
+attempt in automating software evolution, highlighting challenges and future improvements to enhance
+learning and problem-solving abilities of autonomous agents.
+
+
+
+
+                                                  2
+1        Introduction
+Software evolution is the process through which a software system adapts to new and changing re-
+quirements over time. It does not only consist of minor adaptations or updates, but also involves
+the introduction of entirely new functionalities that allow the software to perform tasks that were
+not previously possible. This difference sets apart the concepts of software evolution and software
+adaptation: the former expands at a fundamental level the capabilities of the system rather than
+simply modifying the existing ones. A parallelism can be made between software systems, as seen in
+the traditional sense of, for example, commercial applications, and autonomous agents that operate
+in a dynamic environment. In both cases, evolving requirements are introduced due to external fac-
+tors that influence the needs of new requirements. For a software agent, this influence comes from
+the enviornment that, through its elements that change over time, pushes the agent to modify its
+behaviour. In conventional software systems the need for change can instead come from users that
+demand new functionalities to be introduced or from market trends that drive the change. This as-
+pect of interaction between the system and the external factors that influence change is the basis for
+the process of software evolution. For instance, an agent may encounter situations that require it to
+develop previously undefined behaviors that allow it to achieve the new desirable state. This mirrors
+how commercial software must evolve to meet emerging demands. By replicating and automating the
+software evolution process in software agents, it is possible to gain insights on how the same can be
+achieved with traditional software systems, easing the work of developers, and making the process
+require less expertise.
+    The traditional software development process requires a lot of work to interpret and define re-
+quirements, implement them through code, test the implementation, and perform the necessary main-
+tenance operations over time. Automation of this process would bring great benefits, but is very
+challenging due to the human expertise required. However, Large Language Models (LLMs) might be
+able to replace this expertise, especially considering that in the last years they have been the focus of
+development resources in big tech companies that see the future of Artificial Intelligence in intelligent
+chatbots. If automation is ever achieved, it could make the process accessible to both experts and non-
+experts, improving efficiency and scalability. Moreover, applications in robotic agents that operate
+in unpredictable environments would benefit from a paradigm that allows them to learn and improve
+their behaviour and planning capabilities. LLMs seem to be a promising solution for automating
+software evolution due to their reasoning skills and their ability to generate code, identifying, defining,
+and implementing new requirements to increase the functionalities of the software system at hand.
+This proposition has been tested in numerous articles, for example in [2], where the authors test the
+ability of ChatGPT [25] and Bard, the predecessor of Gemini [32], in a series of tasks that are usually
+part of the software development process, concluding that results are promising but not without issues
+that are recognized in the literature as common limitations of LLMs.
+    This thesis aims to develop an autonomous software agent capable of evolving by acquiring new
+abilities that allow it to achieve the goals identified. To leverage large language models in automating
+the software evolution process, the BDI paradigm was used as the basis for the autonomous agent
+proposed. This framework allows the agent to perceive the environment and to store the information
+received. This information is then used to propose new requirements which are then satisfied with
+the code generated by the LLM. The architecture developed implementes an iterative process that
+not only acts on the environment, but also evalutes the results of its actions. The framework guides
+the LLM through generation of various elements required for the agent to function, from functions
+that integrate the events perceived into its knowledge, to textual descriptions of the new objectives
+that should be pursued. In its evolution process, the agent learns how to produce the plans that lead
+to achievement of its goals, first by leveraging the LLM, and then by using the generated code in
+complete autonomy. The learning process should ultimately produce a software agent that is capable
+
+                                                    3
+of satisfying a series of goals that were not previousely defined, and that has the ability to pursue and
+achieve them later without the intervention of the LLM or of any other entity.
+     To evaluate the effectiveness of the developed architecture, a series of experiments were designed
+to test the agent in a game-like environment. In this environment, the main purpose of the agent is to
+move on the map to collect and deliver parcels that increase its personal score. The environment can be
+configured to contain other objects that can be interacted with, in order to assess the problem-solving
+abilities of the agent guided by the LLM. For each experiment, a series of objectives was chosen to judge
+whether the agent’s self-proposed goals were aligned with human common sense and intuition. The
+analysis performed shows that the agent is indeed capable of evolving in its requirements, completing
+most of the tasks given, but is not able to fully learn how to reach them without the help of the LLM,
+failing in this sense in its learning process.
+     Overall, this thesis demonstrates an initial step towards automation of the software evolution
+process through the use an LLM-based BDI architecture that implements an autonomous software
+agent. This agent, although capable of evolving its requirements, satisfying them, and reaching the
+desired objectives set for most experiments, reamins limited in its learning abilities.
+
+   The thesis is divided into the following chapters:
+
+   • Background: This chapter defines the agent developed by discussing its various aspects, from
+     the concept of software evolution and the relevant topics in the software engineering field, to
+     its implementation with the BDI model adapted to be used in unison with a Large Language
+     Model.
+
+   • Architecture: The BDI adaptation is explained in depth, with descriptions of the perception and
+     control units that constitute the agent. Implementation details are then discussed, for example
+     with the types of prompts used or the possible configurations of the architecture. This chapter
+     also contains a lenghty explanation on the interpretation of desires and intentions, as well as the
+     generation steps they go through and the possible outcomes of the process.
+
+   • Experiments: This chapter first describes the environment designed to test the autonomous
+     agent developed, with an explanation on the actions that the agent can perform and what are
+     their effects on the objects that are spawned on the map. Then, the various typologies of
+     experiments conducted are illustrated, with an analysis of the results obtained both in terms of
+     tasks completed and learned abilities, and in terms of quality of the generated code by the LLM.
+
+   • Conclusion: Finally, some considerations are made about the capabilities of the agent proposed,
+     with suggestions about future work, and with an in-depth discussion on possible improvements
+     that could fix the issues and limitations observed in the experiments performed.
+
+   The code implementation is available on GitHub: https://github.com/francesco-vaccari/
+Deliveroo2.
+
+
+
+
+                                                   4
+2         Background
+2.1      Software Evolution
+As Lehman explained in 1980 [21], each program has a life cycle in which it goes through the stages
+of definition, implementation and maintenance, where changes are made to the software constantly.
+The pressure for these change comes from “organizational and environmental feedback”1 , meaning that
+there are external factors that lead to the software being changed and thus evolving in its requirements.
+Lehman, in his software evolution laws, initially proposed in 1978 [20], then refined in 1980 [21], and
+revisited again in 1996 [19], aims to model the evolution process of the so-called E-type programs,
+which are defined as “programs [that] are reflections of human processes or of a part of the real world”2 .
+Changes happen if there is a need for them, and in the context of this thesis this need is given by
+the environment that introduces new elements to an agent that must adapt and evolve to satisfy new
+requirements.
+    The agent architecture developed can be recognized as part of the category of E-type programs,
+and it is possible to identify the evolution of the agent as a software evolution process, altough no
+human-driven developlment is involved, unlike the study cases analyzed in the literature. Here, the
+evolution is indeed pressured by changes in the environment, but is then carried out with the help of
+a Large Language Model (LLM).
+    To define the type of software evolution considered in this thesis, we can look at the numerous
+taxonomies of software change that have been proposed, for example in Types of software evolution and
+software maintenance [7] and Towards a taxonomy of software change [6]. Using these categorizations,
+it is possible to classify the type of change by analyzing what changed and how it changed. The
+software agent changes whenever new LLM-proposed goals are introduced, which are influenced by
+the elements present in the environment, meaning that the agent itself indirectly reacts to changes
+in the environment. The evolution is fully autonomous from this aspect, without needing external
+human intervention to create, validate, deploy, and evaluate the changes made. Regarding the temporal
+properties of change, the agent evolves continuosly but is constrained by the LLM’s generation speed,
+which is not instantaneous. The changes can be mainly categorized as enhancing the abilites of
+the agent, with a limited quantity of corrective changes that are performed to fix errors in function
+executions.
+    A major difference has to be considered when defining the concept of software evolution as it was
+imagined for the work of this thesis. The changes cannot be said to be applied to the code itself,
+but rather to the system that constitutes the agent. The code is not evolved by modifying it, but by
+generating new code that is aligned with the new requirements that evolve over time. This is a key
+difference that sets apart the software evolution process defined here from the one described in the
+literature.
+    Maintenance, which is recognized in the articles mentioned above as a key aspect and the most
+demanding phase, does not play such a big role in the evolution of the proposed agent. However,
+this does not mean that maintenance actions are not performed, but rather that it is not the main
+focus. For example, when the agent achieves a goal, the code generated that was used to reach that
+objective is kept for future use, and it is possible that it will be executed again. If that is the case,
+the code will undergo an additional evaluation phase to check if it is still valid and if it can be reused
+again. This form of maintenance allows the agent to remove unwanted behaviors that may have been
+present in the code but were not detected during the first execution. This maintenance phase is not
+as significant as described in the literature, but it is still necessary for the agent to evolve correctly.
+   1
+    Meir M. Lehman, Programs, life cycles, and laws of software evolution, p.8
+   2
+    Israel Herraiz, Daniel Rodriguez, Gregorio Robles, Jesus M Gonzalez-Barahona, The evolution of the laws of software
+evolution: A discussion based on a systematic literature review, p.6
+
+
+                                                          5
+   In summary, this thesis aims to automate the software evolution process by developing an agent
+architecture that is capable of achieving new self-proposed requirements, with the help of an LLM
+that acts as a reasoning and planning system. The agent evolves in its abilities and behaviors by
+generating new code that is aligned with the new requirements, while also maintaining its library of
+previously generated code in order to make use of it in the future.
+
+
+2.2       Autonomous Software Agents
+The concept of agent can be traced back to the work of Hewitt in 1977 [14] in which he presents an
+“approach to modelling intelligence in terms of a society of communicating knowledge-based problem-
+solving experts”3 . These experts are later referred to as actors defined by their ability to perform
+actions and to retain internal knowledge. These two aspects are also clearly present in the agent
+architecture developed, where the agent consists of a control unit responsible for executing actions
+and a perception unit that is in charge of processing incoming information and maintaining the agent’s
+internal representation of the environment.
+    Over the years, the notion of agent has evolved, yet no clear definition has been universally agreed
+upon in the literature. In 1996, Nwana [24] defines an agent as
+
+        “a component of software and/or hardware which is capable of acting exactingly in order
+        to accomplish tasks on behalf of its user”4 .
+
+However, as the author points out immediately after, it is more appropriate to say that the term agent
+is
+
+        “an umbrella term, meta-term or class, which covers a range of other more specific agent
+        types”5
+
+and thus it is preferable to define an agent by listing and analyzing its attributes. This kind of definition
+allows to classify agents based on their distinguishable properties that can be used to differentiate
+between types. The author identifies the following categories:
+
+      • Mobile or Static: Agents that can move around in the environment are classified as mobile
+        agents, while those without this ability are considered static agents.
+
+      • Deliberative or Reactive: Agents that “possess an internal symbolic, reasoning model and
+        [...] engage in planning and negotiation”6 fall into the category of deliberative agents, while
+        reactive agents do not have this internal representation of the environment and instead act by
+        reacting directly to the perceptions received.
+
+      • Autonomous: Autonomous agents can act without external intervention, following internal
+        goals and objectives. An important aspect of autonomous agents is their proactivity, meaning
+        that they can take the initiative in planning to achieve their goals.
+
+      • Collaborative: Agents that can interact with others are defined as social agents, and the ability
+        to communicate, coordinate and cooperate towards a common goal is a key aspect of this type
+        of agents.
+
+      • Smart: Smart agents are defined by the author as capable of learning as they react to the
+        environment and act on it. The temporal component is taken into consideration for this category,
+        as the agent might be able to improve its performance over time as a result of learning from its
+        interactions.
+  3
+    Carl Hewitt, Viewing control structures as patterns of passing messages, p.1
+  4
+    Hyacinth S. Nwana, Software agents: An overview, p.6
+  5
+    Hyacinth S. Nwana, Software agents: An overview, p.6
+  6
+    Hyacinth S. Nwana, Software agents: An overview, p.6
+
+
+                                                          6
+The agent developed can be identified as mobile since it moves into a virtual environment, deliberative
+as it has a model of the external environment and can reason on it to plan which actions to take,
+autonomous as it does not require to be guided from an external entity to perform its tasks, and smart
+as it can learn from the interactions it experiences. The agent cannot be classified as collaborative
+since, at least in this thesis, it does not interact with other agents as there are none in the environment
+created.
+    In 1995, Wooldridge and Jennings [37] admit that defining what is an agent is a difficult task as
+there is not an universally accepted definition, but propose two categories of agency that are, once
+again, based on the agent’s properties:
+
+      • Weak Notion of Agency. Agents are characterized by their ability to act autonomously, to
+        interact with other agents and to perceive and react to changes happening in the environment,
+        while still showing proactive behavior towards goal achievement. This definition is similar to the
+        classification by attributes proposed by Nwana.
+
+      • Strong Notion of Agency. Strong agency is characterized by human-like “mentalistic notions,
+        such as knowledge, belief, intention, and obligation”7 . This particular definition is cited by the
+        authors themselves and is from Shoham, 1993 [31].
+
+Regarding the agent proposed here, it can be definitely classified as a strong agent, as its model, as
+well as the definition, is inspired by the BDI mdoel, which will be explained in the next section.
+   Up to this point we have seen how it is possible to define an agent, but we have not explained
+exactly what is the difference between a software agent and an autonomous one. In 1996, Franklin
+and Graesser [12] propose a clear definition that distinguishes the two:
+
+        “An autonomous agent is a system situated within and a part of an environment that
+        senses that environment and acts on it, over time, in pursuit of its own agenda and so as
+        to effect what it senses in the future.”8
+
+As the authors explain, an autonomous agent does not have to be a program; it could be a robot
+or even a human being. In contrast, a software agent is inherently a program. This categorizes
+software agents as a subset of autonomous agents. Four key properties of an autonomous agent can
+be identified: reactivity, autonomy, goal-oriented behavior, and temporal continuity. These attributes
+align with those discussed by Nwana, Wooldridge, and Jennings, and can all be found in the agent
+architecture presented in this thesis.
+
+2.3       BDI Model
+The BDI model is a software model that is used to design and program agents. It is based on the ideas
+first introducted by Bratman in 1987 [3], which then he refined in 1988 [4]. This initial concept was
+further developed by the work of Georgeff and Rao in 1991 [27], 1995 [28], and in 1996 with Kinny as
+co-author [18], leading to a more modern formalization of agents based on the BDI paradigm.
+     A Belief-Desire-Intention (BDI) agent is a type of rational agent that reflects the notion of strong
+agency:
+
+        “Agents are viewed as having certain mental attitudes: Beliefs, Desires, and Intentions,
+        which represent, respectively, their informational, motivational, and deliberative states.”9
+
+Desires are referred to as the goals set that the agent may adopt, while the intentions are seen as the
+plans set that the agent may employ to achieve those goals. Beliefs are the information about the
+environment or about the agent itself that are described in the agent’s belief set. These components,
+implemented as data structures, are used by the agent, called the BDI-Interpreter by Georgeff and
+Rao [28], in a continuous loop that aims to achieve the agent’s goals, as shown in Algorithm 1.
+  7
+    Michael Wooldridge, Nicholas R. Jennings, Intelligent agents: Theory and practice, p.5
+  8
+    Stan Franklin, Art Graesser, Is it an Agent, or just a Program?: A Taxonomy for Autonomous Agents, p.25
+  9
+    Anand S. Rao, Michael P. Georgeff, BDI agents: from theory to practice., p.1
+
+
+                                                       7
+Algorithm 1 BDI-Interpreter
+ 1: initialize-state();
+ 2: repeat
+ 3:    options := option-generator(event-queue);
+ 4:    selected-options := deliberate(options);
+ 5:    update-intentions(selected-options);
+ 6:    execute();
+ 7:    get-new-external-events();
+ 8:    drop-successful-attitudes();
+ 9:    drop-impossible-attitudes();
+10: end repeat
+
+
+
+     The event queue contains the events perceived by the agent, which are stored until the agent
+processes them. In each iteration, the agent generates and selects possible options and updates the
+intentions based on this decision. Actions are then executed as intentions dictate and new events are
+added to the queue. Finally, a revision of intentions and desires is performed to remove the ones that
+are now satisfied or impossible to achieve.
+     A more modern pseudo-code specification of a BDI agent [33] is shown in Algorithm 2, where ρ
+represents the events received from the environment. The general concepts remain the same, but the
+implementation is more detailed and structured. Just like before, there is an initialization procedure
+of the agent followed by the main loop. The order of operations is not the same, but most can
+still be recognized easily. After having initialized the beliefs and intentions set, the agent proceeds
+to enter the main loop. In each iteration, the agent receives the new events from the environment,
+here represented by the percept ρ, and integrates the information that they carry in the belief set
+through the operation of beliefs revision. In this step the agent’s knowledge is not only updated,
+but also checked against the new available observation and is changed accordingly. Then the options
+generation and deliberation steps are performed to select the best goal and plan to execute through
+the use of desires and intentions. The plan is then executed action by action, and for each one the
+agent checks if the goal has been reached or if it is necessary to reconsider the plan, in case it is now
+impossible to achieve or if it is not the best option anymore. Once the plan execution terminates,
+the agent goes back to the beginning of the loop with a new beliefs revision step and the process is
+repeated.
+
+
+2.4     Large Language Models
+Large Language Models (LLMs) are deep learning models built for natural language processing tasks.
+In the field of NLP, they can be considered the successors of Recurrent Neural Networks (RNNs) [29],
+with special importance given to Bidirectional RNNs [30], and Long Short-Term Memory networks
+(LSTMs) [15]. LLMs revolutionized the field with their ability to capture and model the relationships
+between words, or tokens, in a text sequence. They were introduced in 2017 [35] and have since then
+become the state-of-the-art in NLP, with growing pupularity and usage in many applications. Their
+success is also a result of the training technique employed, which is based on unsupervised learning
+on very large datasets [26], which yields very powerful models that can be later fine-tuned on specific
+tasks. Models like BERT (Bidirectional Encoder Representations from Transformers) [10] set new
+benchmarks in many NLP tasks and were followed by the famous GPT models, one of which is used
+in this thesis.
+
+2.4.1   Applications of LLMs
+Large Language Models are used in many applications, with one of the most famous examples be-
+ing chatbots, which have become more and more popular after the announcement of ChatGPT in
+November 2022 [25], which is based on the GPT-3 model developed by OpenAI [5]. Other notable and
+publicly available models that act as chatbots are LLAMA from Meta [34] and Gemini from Google
+[32]. The tasks that these models are capable of performing are many, ranging from creative writing
+
+                                                   8
+Algorithm 2 Standard BDI agent model pseudocode
+ 1: B ← {β1 , ..., β2 }                                                ▷ Initial beliefs-knowledge base
+ 2: I ← {ι1 , ..., ι2 }                                                      ▷ Initial intentions-desires
+ 3: while True do
+ 4:    get ρ                                                                                    ▷ Input
+ 5:    B ← belief sRevision(B, ρ)
+ 6:    D ← options(B, I)
+ 7:    I ← f ilter(B, D, I)                                                        ▷ Derived intentions
+ 8:    π ← plan(B, I)
+ 9:    while not [or empty(π)
+10:               or succeded(I, B)
+11:               or impossible(I, B)] do
+12:        α ← head(π)
+13:        return α
+14:        π ← tail(π)                                                                       ▷ Output
+15:        get ρ                                                                         ▷ Update of ρ
+16:        B ← belief sRevision(B, ρ)
+17:        if reconsider(I, B) then                                                ▷ Caution condition
+18:            D ← options(B, I)
+19:            I ← f ilter(B, D, I)
+20:        end if
+21:        if not sound(π, I, B) then                                                    ▷ Plan update
+22:            π ← plan(B, I)
+23:        end if
+24:    end while
+25: end while
+
+
+
+of stories or poems, to more technical and formal generation of text like summaries of articles or code
+snippets.
+    For this thesis, the interest goes to applications of LLMs in the field of software engineering,
+autonomous agents, and related to reasoning and planning for problem solving tasks. In the context
+of LLMs that assist developers, we find once again OpenAI that developed Codex [8] that is the basis
+for GitHub Copilot [11], a tool that can be used for code generation and completion, through the
+use of LLMs that have been fine-tuned specifically to learn the alignment between natural language
+and code. Tools like these are spreading in the software development community and are hinting
+at a future where the entire software development process could be automated through the use of
+specialized models that interpret requiremenets and generate entire software systems with minimal
+human intervention. The work of this thesis goes in the same direction, but with a focus on LLM-based
+agents that use the generated code to navigate and interact with their virtual environment.
+    Modern implementations of LLMs are capable of more sophisticated applications. For example,
+in [2] the authors test ChatGPT and Bard, the predecessor of Gemini, in a series of tasks that are
+commonly part of the software development process: requirements definition, design of a solution, and
+implementation and testing of said solution. The results show that the models are promising, but
+with some limitations that are recognized on a more broad level in the literature. LLMs need to be
+prompted in a specific way to obtain desirable results, and the large domains that a real application
+involves are not easily handled by the models due to technical limitations of the input size. And even
+if scaling is possible, it does not come without challenges such as reduced quality of generation and
+increased computational costs. Another problem tackled in [23] refers to how solutions proposed by
+LLMs seem to be correct but often do not work as intended. A function that is almost correct is,
+unfortunately, still an incorrect solution that produces the same result of a completely wrong solution.
+The techniques, strategies, and frameworks employed to obtain a correct solution are many, elaborate,
+and most importantly shift the burden of the debugging process from the LLM to the end user. This
+problem, called by the authors the “near miss syndrome” or “last mile gap”, is addressed with a
+
+                                                   9
+framework that iteratively executes and debugs canditate solutions generated by the LLM. Another
+approach to solve this issue is proposed in [13] where a genetic programming approach is used. The
+authors propose a system where a population of code is generated, executed, and evaluated to select
+the best performing candidates that go through the process of mutation and recombination to create a
+new population that replaces the old one, in a continuous loop that should lead to working solutions. A
+recurring theme is the need for approaches that include a feedback loop that, through many iterations,
+allow the LLM to slowly fill in the gap between a working solution and a non-working one.
+    To summarize the strengths and weaknesses of LLMs in software engineering, [17] provides a
+literature review that discusses the potential of LLMs in automating the software development process.
+LLMs are promising in the task of requirement generation, but their general purpose training might
+harm the quality of results especially when dealing with complex and technical information. In code
+generation the accuracy of code cannot be ensured, even when using fine-tuned and specialized models.
+Similar problems also arise when generating testing software as coverage and correct interpretation
+cannot be guaranteed. There is still potential for LLMs to evolve in this field and to truly and fully
+automate the software development process.
+    LLMs can also be adapted to play the role of reasoning or planning engines. In these kinds of
+applications, prompt engineering is necessary to obtain the desired results. One example is the few-shot
+prompting technique used in [5] that provides few examples of input-output pairs to guide the model
+to correct solutions. Another technique that builds on top of few-shot prompting is chain-of-thought
+prompting [36], which adds to the question a series of intermediate steps in an attempt to explain
+what is the desired reasoning path that should be taken to produce a correct result. In planning tasks,
+LLMs are used to generate series of actions that should be taken to solve the given problem. However,
+similarly to the problem of code generation, the plans produced often are semantically correct, but
+cannot be actually executed. This kind of problem is addressed in [16] where the authors suggest
+some strategies to map the proposed plan into an admissible one, as shown by the results of the
+experiments conducted in which executability is improved from 18% to 79%. Another approach that
+does not involve generating directly plans is demostrated in [22] where the LLM is used to create a
+planning domain description language (PPDL) specification that is then given to classical planners to
+generate the plan. This indirect approach is more successful in generating executable plans, as long
+as the created file is correctly formatted, but it also less likely to produce a semantically sound plan.
+    An interesting article that has been the main inspiration for the work of this thesis is about
+Augmentic Autotelic Agents with Large Language Models [9]. The peculiarity of autotelic agents is
+that they are capable of setting their own goals. This capability is empowered by LLMs that, as the
+authors state, are
+
+       “an imperfect model of human cultural transmission; an attempt to capture aspects of
+       humans’ common-sense, intuitive physics and overall interests.”10
+
+LLMs can be seen as a summary of human knowledge, a representation of human reasoning and
+planning that can be used to make human-aligned decisions. The authors propose a framework that
+implements an iterative process to populate a set of policies that consist of series of actions that the
+agent can take to achieve the associated goals. This structure is similar to the one used in the agent
+developed and illustrated in the BDI model, where the agent has a set of goals (desires) and a set
+of plans to achieve them (intentions). Another concept that has been taken from this article is the
+idea of chaining multiple plans to obtain more complex goals. This is similar to what can be done
+with intentions: to achieve a goal, the agent can generate and execute more that one intention, each
+one bringing the agent closer to its objective. This decomposition of goals into smaller sub-goals is
+common in planning tasks, and is here implemented by the LLM that proposes not only the final
+long-term goal, represented by the desire, but also the short-term sub-goals that are realized by the
+intentions.
+
+  10
+    Cédric Colas, Laetitia Teodorescu, Pierre-Yves Oudeyer, Xingdi Yuan, Marc-Alexandre Côté, Augmenting autotelic
+agents with large language models, p.1
+
+
+                                                         10
+2.5    Self-Evolving Software Agent
+Using the background information presented in this chapter, we can come up with a comprehensive
+definition of the agent developed in this thesis. The software agent proposed, based on the Belief-
+Desire-Intention (BDI) architecture, is autonomous, mobile, deliberative, and intelligent. The agent is
+designed to operate in a virtual environment, using a Large Language Model (LLM) to autonomously
+set and achieve evolving goals. The agent accomplishes a form of automated software evolution, where
+changes are driven by interactions with the environment and realized through the generation of new
+executable code. This automated process eliminates the need for external human intervention in the
+phases of code generation, validation, and deployment. The agent’s ability to adapt, create reusable
+code, and maintain its abilities over time highlights its alignment with Lehman’s E-type programs,
+while giving a new perspective on software evolution through continuous, autonomous adaptation.
+
+
+
+
+                                                  11
+3         Architecture
+The architecture developed is based on the BDI agent model, adapted in order to be used in unison
+with an LLM to allow the agent to evolve. The architecture is divided into two main parts: the
+perception unit and the control unit. The perception unit receives, handles, and processes events
+coming from the environment, and stores the information that will be used by the control unit. The
+control unit is responsible for the decision-making process, which consists of creating goals and trying
+to achieve them by generating plans and executing them. From the input handled by the perception
+unit, to the output actions executed by the control unit, the agent requires an external entity to
+achieve its goals.
+    In the context of this thesis, this external entity is ChatGPT, a Large Language Model (LLM)
+capable of generating the natural language descriptions of the objectives to achieve, and the code
+necessary to achieve them. Altough it is possible to replace the LLM, which does not necessarily
+have to be ChatGPT, with some other entity with similar reasoning and generation capabilities, the
+architecture is specifically designed to work with an LLM.
+    The union of the BDI model, the LLM, and the architecture developed, consitute the self-evolving
+software agent proposed in this thesis. This agent is capable of learning how to achieve self-proposed
+objectives, given a description of the actions it can perform. Most importantly, this agent is environment-
+agnostic, as long as the changes happening in the environment are modeled as events that can be
+perceived by the agent.
+    Let’s consider a BDI agent model pseudo-code specification [33], already presented in Section 2.3,
+also shown here in Algorithm 3.
+
+Algorithm 3 Standard BDI agent model pseudocode
+ 1: B ← {β1 , ..., β2 }                                                 ▷ Initial beliefs-knowledge base
+ 2: I ← {ι1 , ..., ι2 }                                                       ▷ Initial intentions-desires
+ 3: while True do
+ 4:    get ρ                                                                                     ▷ Input
+ 5:    B ← belief sRevision(B, ρ)
+ 6:    D ← options(B, I)
+ 7:    I ← f ilter(B, D, I)                                                         ▷ Derived intentions
+ 8:    π ← plan(B, I)
+ 9:    while not [or empty(π)
+10:               or succeded(I, B)
+11:               or impossible(I, B)] do
+12:       α ← head(π)
+13:       return α
+14:       π ← tail(π)                                                                         ▷ Output
+15:       get ρ                                                                           ▷ Update of ρ
+16:       B ← belief sRevision(B, ρ)
+17:       if reconsider(I, B) then                                                  ▷ Caution condition
+18:           D ← options(B, I)
+19:           I ← f ilter(B, D, I)
+20:       end if
+21:       if not sound(π, I, B) then                                                      ▷ Plan update
+22:           π ← plan(B, I)
+23:       end if
+24:    end while
+25: end while
+
+
+                                                   12
+    The three main components, identified by the model name itself, are the Beliefs set, the Desires
+set, and the Intentions set. The beliefs set contains propositions that the agent believes to be true,
+describing the state of the world the agent operates in. The desires set consists of high-level goals
+the agent would like to achieve, not directly actionable and possibly not consistent. The intentions
+set is a more focused subset of refined desires, actionable, and directly guiding the agent closer to
+achievement of its objectives.
+
+    In the architecture developed, the concept of desires has been interpreted as long-term goals,
+while intentions are seen as short-term goals that the agent is capable of achieving in few steps.
+This interpretation is also reflected in the prompts given to the LLM, where the terms ’desire’ and
+’intention’ were replaced with ’long-term goal’ and ’short-term goal’ respectively. This choice was
+made to make the difference more clear to the LLM and help it produce correct responses. Instead,
+the concept of belief set is kept the same, and the term ’belief set’ is used in all prompts. A similarity
+with the BDI model presented in section 2.3 is that intentions can be seen as synonym to plans, and
+are used to achieve the goals set by the desires.
+
+   A major difference with the standard BDI agent model is that the two separated units, perception
+and control, operate in an asynchronous way, allowing the agent to execute actions while still perceiving
+the environment. This makes the beliefs revision step effectively continuous, updating the internal
+agent’s representation of the environment as soon as a new event is received without waiting for the
+current plan or action to be completed.
+
+    Another important difference with the standard BDI agent model lays in how plans are executed:
+in Algorithm 3, the plan, made of a sequence of actions, is first generated using an intention and
+the current belief set, and only then is executed by the agent. Moreover, during execution, there are
+multiple checks to see if the plan is still valid or if it should be updated or if its execution should
+be interrupted. In the architecture developed, this is not possible due to implementation choices.
+Each intention is carried out using its associated function that, given the belief set, generates the
+next action to be executed. Once an action is chosen for execution, it is immediately performed by
+the agent. This implementation allows the intention’s function to perform checks on the belief set,
+which is asynchronously updated as the agent interacts with the environment, thus making the agent
+reactive to changes. This means that the possibility of reconsidering a plan is not directly present in
+the architecture developed, but can be indirectly realized in the functions that choose the next action
+to perform.
+
+
+3.1     Perception Unit
+To explain how the perception unit works, we first need to define what events are, and what assump-
+tions were made about them. An event occurs whenever there is a change in the environment that the
+agent can perceive. If an event happens, the agent receives the percept of the event and with it some
+information regarding the change. An assumption made is that the agent expects to receive, along
+with the percept, the object type the event is related to, and also the type of change that happened,
+which states if the object was added to the environment, changed in some way, or removed from the
+environment.
+
+    The object type needs to be specified in all events to allow the architecture to decide how to handle
+the event and update the belief set. The event type is instead used to help the LLM understand what
+kind of event is being received, and to simplify the generation of the perception functions.
+
+    The Perception Functions set P F is one of the new components introduced in the architecture. It
+is a set of functions that integrate the information contained in newly received events into the belief
+set, performing the beliefs revision. Each object type that the agent has seen in the environment has
+a corresponding perception function, which is used to process only the events related to that object
+type. The perception functions are generated by the LLM and stored in the P F set, and are used to
+update the belief set whenever a new event is received, as shown in Algorithm 4.
+
+                                                   13
+Algorithm 4 Perception module pseudocode
+ 1: B ← {}                                                                            ▷ Initialize Belief Set
+ 2: P F ← {}                                                             ▷ Initialize Perception Functions
+ 3: while T rue do
+ 4:    E ← getN ewEvents()
+ 5:    P F ← generateP erceptionF unctions(P F, E)                                  ▷ Prompt LLM (1)(2)
+ 6:    B ← reviseBelief Set(B, P F, E)
+ 7: end while
+
+
+
+    The belief set B and the perception functions set P F are initialized as empty, the agent then
+enters an infinite loop in which new events are received, new functions are generated by the LLM
+when necessary, and the belief set is updated using those functions. Perception functions generated
+in previous iterations are stored and reused for events related to the same object type. It is possible
+to set a limit on the number of events that a function can process before being discarded, otherwise
+the function will be used indefinitely. If an error occurs when processing an event, the function for
+that object type is marked as invalid and a new function will be generated to replace it.
+
+
+3.2       Control Unit
+The control unit is very different from the standard BDI agent model, with many more components
+to adapt the architecture to use it in conjunction with an LLM, and to allow the agent to evolve
+in the goals it can achieve. As explained before, desires and intentions are interpreted as long-term
+and short-term goals respectively. The purpose of the control unit is to populate these two sets, thus
+acquiring new abilities and evolving over time, while interacting with the environment trough action
+execution. The main components of the control unit are:
+
+      • Intentions I: The Intentions set contains all the intentions generated. Each intention consists
+        of a textual description and a code function. The description explains what is the goal the
+        intention is trying to achieve, and the function is used to generate the plan to achieve that goal.
+
+      • Desires D: The Desires set contains all the desires generated. Each desire consists of a textual
+        description, a list of intentions, and a trigger function. The description explains what is the
+        long-term goal that the desire is trying to achieve. The list of intentions is the set of short-
+        term goals that, if achieved sequencially by executing the plan generated by each associated
+        fucntion, should lead to the satisfaction of the desire. The trigger function is used to check if
+        the environment is in a state in which the desire can and should be pursued.
+
+      • Desire Trigger Functions DT F : This set contains all the desire trigger functions generated.
+        Each trigger function is associated to a single desire from the desires set. The function takes the
+        belief set as input, and returns a boolean value that indicates if the desire should be pursued or
+        not given the current state of the environment.
+
+      • Actions A: This set contains the actions that the agent can perform. Each action is provided
+        with a brief description of what effect it has. All actions are first transformed into an intention
+        and then added to the Intentions set.
+
+      • Memory M : The Memory component is uniquely used as a feedback mechanism to help the
+        LLM generate working intentions, and is erased after each generation. In this implementation
+        the memory is a string that contains some text generated by the LLM in the previous iteration.
+
+      The control loop is described in Algorithm 5.
+
+                                                      14
+Algorithm 5 Control unit pseudocode
+ 1: D ← {}                                                                              ▷ Initialize Desires
+ 2: DT F ← {}                                                      ▷ Initialize Desires Trigger Functions
+ 3: I ← {}                                                                 ▷ Initialize Intentions Library
+ 4: P ←Ø                                                                           ▷ Initialize empty Plan
+ 5: A ← {moveup, pickup, ...}                                                ▷ Initialize and load Actions
+ 6: M ←Ø                                                                       ▷ Initialize empty Memory
+ 7: I ← addActionsAsIntentions(A, I)                                       ▷ Populate Intentions Library
+ 8: wait()                                                             ▷ Wait for Belief Set to be ready
+ 9: while T rue do
+10:    D′ ← checkDesiresT riggers(D, DT F )
+11:    if D′ then
+12:        P ← getP lan(D′ , B)
+13:        E ← execute(P )
+14:        if ¬desireIsSatisf ied(D′ , B) then                                        ▷ Prompt LLM (5)
+15:            D ← removeDesire(D, D′ )
+16:        end if
+17:    end if
+18:    if ¬D′ then
+19:        M ← eraseM emory()
+20:        D′ ← generateN ewDesire(D, B)                                              ▷ Prompt LLM (1)
+21:        while T rue do
+22:            I ′ ← generateIntention(D′ , I, B, M )                              ▷ Prompt LLM (2)(3)
+23:            P ← getP lan(I ′ , B)
+24:            E = execute(P )
+25:            evaluation, M ′ ← evaluateExecution(I ′ , P, E, M )                 ▷ Prompt LLM (4)(7)
+26:            M ← updateM emory(M ′ )
+27:            if evaluation then
+28:                M ← eraseM emory()
+29:                D′ ← addIntentionT oDesire(I ′ )
+30:                if desireIsSatisf ied(D′ , B) then                                 ▷ Prompt LLM (5)
+31:                    DT F ′ = generateT riggerF unction(D′ , B)                     ▷ Prompt LLM (6)
+32:                    D = addDesire(D′ )
+33:                    DT F = addT riggerF unction(DT F ′ )
+34:                    break
+35:                end if
+36:            end if
+37:        end while
+38:    end if
+39: end while
+
+
+    The objective of the control unti is to populate the desires and intentions set with new goals that
+the agent can achieve by executing the associated functions. The evolution aspect lays in this process
+of generating new goals, trying to achieve them, and evaluating the results. At the end of the process,
+the agent can avail of these learned abilities without needing to consult with the LLM.
+    The control unit, shown in Algorithm 5, consists of the following steps:
+      • All sets and components are initialized as empty.
+      • The actions available to the agent are transformed into intentions and added to the intentions
+        set. Each action is paired with a function that, in this implementation, is a simple wrapper
+        around the action itself. Alongside the function, a short textual description explaining what the
+        action does is also added to the intention for each action.
+      • When all components are ready, the agent needs to wait for the belief set to contain at least one
+
+                                                    15
+      entry before starting the desire and intentions generation process. Once the belief set is ready,
+      the agent waits once more for a predefined amount of time, after that the control loop starts.
+
+   • First the agent checks if any of its desires can be pursued. In this checking phase, the trigger
+     functions associated with each desire are run with the current belief set as input. If any of
+     the functions returns a positive result, the corresponding desire is selected as a candidate for
+     execution. If more than one candidates are found, the desire to be pursued is chosen randomly
+     and is triggered in this way. In the first iteration of the loop, the desires set will be empty,
+     meaning that this step is initially skipped.
+
+   • If a desire is triggered, all the valid intentions associated with it are executed in sequence. After
+     the execution is completed, the LLM is prompted to evaluate whether the long-term goal was
+     achieved or not. If the LLM determines that the desire was not satisfied, the desire is invalidated
+     and can no longer be triggered in future iterations. The desire is also invalidated if the execution
+     of one of its intentions fails. In this case the intention will be invalidated as well.
+
+   • If no desire is triggered, the agent proceeds to generate a new desire. The LLM is prompted
+     with the current belief set and the list of all desires’ descriptions, and is asked to generate a new
+     desire.
+
+   • Once a desire is generated, the agent enters a loop that will terminate if the currently pursued
+     desire is satisfied, or if too many intentions fail to generate in a row. In this loop, the LLM
+     generates a new intention aligned with the desire goal description, and the agent tries to execute
+     it. If the functions fails to execute, the intention is invalidated and a new one is generated. If the
+     intention is instead executed successfully, the LLM is asked to determine if the short-term goal
+     from the intention description was accomplished. A negative evaluation is accompanied by some
+     feedback that is stored in the memory and is given to the LLM in the next intention generation.
+
+   • However, if the LLM evaluates positively the intention execution, the intention is added to the
+     desire, and the LLM is asked to evaluate whether the desire is satisfied or not. If the desire
+     is not satisfied, the loop continues with new intention generations until the desire is judged as
+     satisfied or until too many intentions fail to generate in a row.
+
+   • If the desire is evaluated as satisfied, the LLM is prompted to generate a trigger function for
+     the desire. This function will be used in the next iterations to determined if the desire can be
+     triggered. The desire is then added to the desires set with the associated trigger function and
+     intentions list. If the trigger function does not generate correctly, the desire is still added to the
+     set, but is invalidated making it impossible to trigger in future iterations.
+   If this process is successful, after a number of iterations of the control loop, the agent will be
+able to achieve a number of long-term goals, defined in the desires set, through the execution of the
+short-term goals, defined in the intentions set. The agent will also have knowledge of when a long-term
+goal can be pursued thanks to the trigger function associated to each desire.
+
+3.3     Implementation Details
+This section contains an explanation of the most important details of the implementation of the
+architecture. The architecture is fully written in Python with a multi-threaded approach to allow for
+the perception and control units, and their many sub-modules, to run concurrently.
+3.3.1    BDI Components
+This section will explain how the elements of the BDI model are implemented, specifically the belief
+set, the desires set, the intentions set, and the perception functions set. For each element, an example
+will be provided to clarify its purpose in the architecture.
+    The belief set is simply a dictionary in which information is stored as the LLM decides to. The
+belief set is initialized as:
+      belief_set = {}
+
+                                                   16
+An example of the value of the belief set, once updated, is the following:
+
+{
+    map: {
+              ’width’: 2,
+              ’height’: 2,
+              ’grid’: [{’cell_coordinates’: [0, 0], ’cell_type’: ’parcels_spawn’},
+                       {’cell_coordinates’: [0, 1], ’cell_type’: ’walkable’},
+                       {’cell_coordinates’: [1, 0], ’cell_type’: ’walkable’},
+                       {’cell_coordinates’: [1, 1], ’cell_type’: ’delivery_cell’}]
+         },
+    parcels: {1: {’id’: 7, ’coordinates’: [0, 0], ’score’: 20, ’carried_by_id’: 1}},
+    agent: {’id’: 1, ’coordinates’: [0, 1], ’parcels_carried_ids’: [1], ’score’: 0},
+    keys: {1: {’id’: 2, ’coordinates’: [0, 1], ’carried_by_id’: None}}
+}
+
+    The belief set is updated by the perception functions that take as arguments the belief set and
+the last event received. Each event is related to a specific object type, which is used to select which
+perception function to use. Events are modeled in a JSON format, and an example of an event is the
+following:
+
+{
+    "event_type": "object changed",
+    "object_type": "parcel",
+    "object": {"id": 21, "coordinates": [0, 0], "score": 20, "carried_by_id": 1}
+}
+
+All events are modeled with the same three fields: event type, object type, and object. The event type
+can contain one of the three following values: ”object added”, ”object changed” or ”object removed”.
+The object type is used to select the correct perception function that handles only events related to
+that specific object type. Once the event is handled, and its information has been integrated into the
+belief set, the event is discarded and the next received event is processed.
+    The perception functions generated by the LLM are stored in a dictionary, where the key is the
+object type the function is responsible of processing. If a perception function runs into an error while
+processing an event, the function is discarded and a new one is generated. An example of a perception
+function, that handles events related to the agent object type, is the following:
+
+def function_3(event, belief_set):
+    if event[’object_type’] == ’agent’:
+        if event[’event_type’] == ’object added’:
+            belief_set[’agent’] = event[’object’]
+        elif event[’event_type’] == ’object changed’:
+            belief_set[’agent’].update(event[’object’])
+        elif event[’event_type’] == ’object removed’:
+            belief_set.pop(’agent’, None)
+    return belief_set
+
+    The belief set is used by intentions and desires to generate plans that the agent will then execute.
+Desires are complex objects that are composed of multiple intentions, and thus require more than one
+LLM generation step to be fully created. Intentions are simpler, and are generated with one single
+prompt. Each intention consists of a goal description sand a function. The function can contain calls
+to other intentions that were generated without errors in previous iterations of the control loop. When
+calling another intention, the intention associated with the called function is executed. An example
+of an intention is the following:
+
+                                                  17
+Executable: True
+Description: The short term goal of the agent is to move towards the delivery
+    cell while carrying a parcel, check if it’s at the delivery cell, and if it
+    is, deliver the parcel.
+Funciton:
+        def function_9():
+            global belief_set
+            agent = belief_set[’agent’]
+            delivery_cell = [cell for cell in belief_set[’map’][’grid’] if cell[
+                ’cell_type’] == ’delivery_cell’][0][’cell_coordinates’]
+            while agent[’coordinates’] != delivery_cell:
+                if agent[’coordinates’][0] < delivery_cell[0]:
+                    function_2()
+                    agent[’coordinates’][0] += 1
+                elif agent[’coordinates’][0] > delivery_cell[0]:
+                    function_1()
+                    agent[’coordinates’][0] -= 1
+                elif agent[’coordinates’][1] < delivery_cell[1]:
+                    function_4()
+                    agent[’coordinates’][1] += 1
+                elif agent[’coordinates’][1] > delivery_cell[1]:
+                    function_3()
+                    agent[’coordinates’][1] -= 1
+            function_6()
+This intention contains calls to the functions function 1, function 2, function 3, function 4, and func-
+tion 6. These particular functions are the ones that allow the agent to perform the basic actions of
+moving, picking up objects, and putting them down. These functions are added at the start of the
+control loop, and are based on the actions that the agent is able to perform. For this reason, the
+functions associated to the basic actions can never be invalidated, and they are always available to
+be called by any intention. An attribute that is saved with each intention is the Executable attribute:
+intentions that are successfully generated are marked as valid and their Executable attribute is set to
+True. Only executable intentions can be included in future intention generations.
+    Desires are generated in multiple steps: first the goal description is proposed by the LLM, and
+only then a number of intentions are generated, as explained above, to try and achieve this goal. The
+intentions generated are asked to be aligned with the desire goal description, and only when the LLM
+evaluates that the desire is satisfied, step which is done after the execution of each intention successfully
+created, the trigger function is generated. After this process the desire is added to the desires set and
+no further modifications are made to it. The trigger function is used in future iterations of the control
+loop to check if the desire can be executed. When a desire is triggered, the intentions that are part of it
+are executed in sequence in order to achieve once again the goal of the desire. Similarly to intentions,
+a desire that is valid is said to be executable, and only executable desire can be triggered in future
+iterations. For clarity, desires that are executable will be referred to as triggerable in following sections
+and chapters. In the following desire example the intentions are omitted for brevity:
+     Description: The agent’s long term goal is to efficiently navigate
+     through the environment, collect as many parcels as possible from the
+     spawn area, and deliver them to the delivery cell to maximize the
+     overall score.
+     Executable: True
+     Intentions: [
+         ...
+     ]
+     Trigger function:
+         def function_dtf_1(belief_set):
+
+                                                     18
+               if belief_set[’parcel’] and any(cell[’cell_type’] == ’parcels_spawn’ for
+                   cell in belief_set[’map’][’grid’]):
+                   return True
+               else:
+                   return False
+
+3.3.2    Desire Outcomes during Generation and Triggering
+It is possible to idenfity two phases in the main loop of the control unit, shown in Algorithm 5 in
+section 3.2. The first phase, that will be referred to as the Desire Generation Phase, is described in
+lines 19-37 of the algorithm, while the second phase, the Desire Triggering Phase, is described in lines
+10-17. During these two phases, the desires generated go through a series of steps that validate them.
+Depending on the outcome of these steps, it is possible to divide desires into different categories. To
+visualize the process that desires go through and what are the possible outcomes, two diagrams are
+shown in Figure 3.1 and Figure 3.2.
+    After generation, all desires are added to the Desires Set but, depending on how successful their
+generation was, four total categories can be identified. If the intentions associated to the desire, as part
+of the desire generation, reach the desire goal, the desire was Satisfied. If the intentions fail to reach
+the goal, which happens after 3 failed intention generations in a row, the desire was Not Satisfied.
+Only for the desires considered as Satisfied the trigger function is generated. If the LLM is not
+able to generate correctly the trigger function, then the desire will not have the opportunity of being
+triggered during the Desire Triggering Phase. For this reason, desires can be further categorized as
+Triggerable, meaning desires that were satisfied and whose trigger function was generated correctly,
+and Not Triggerable, meaning desires that were satisfied but whose trigger function generation
+failed. Figure 3.1 shows how each category is reached during the generation process.
+    During the Desire Triggering Phase, all trigger functions associated to triggerable desires are run
+with the current belief set as argument. If a trigger function gives as output a positive result then its
+associated desire is triggered and is immediately executed. After the execution of a triggered desire,
+the LLM is prompted to evaluate if the desire was once again satisfied or not. If the LLM decides that
+the desire goal was not achieved during the triggered execution, the desire is invalidated and will no
+longer be triggerable in future desire triggering phases. This category of desires can be classified as
+Not Triggerable. Instead, if the LLM evaluates the desire triggered execution as successful, meaning
+that the goal of the desire was reached, then the desire remains in the Triggerable state. Figure 3.2
+shows how each category is reached during the triggering process.
+    At the end of the control loop, the agent will have generated a set of desires that belong to one
+of the four categories described above. However, further distintions can be made, depending on if
+a desire was ever triggered during the entire process. Desires that after the generation phase were
+classified as Triggerable, but never actually executed during the triggering phase, can be classified
+as Untriggered. Desires that were instead triggered at least once during the triggering phase can be
+classified as Triggered.
+    A Triggered and Triggerable desire is much more valuable than an Untriggered and Trigger-
+able one, since the former has been tested and proven to work oustide the generation phase, meaning
+that it executed in a different state of the environment than the one it was generated in. The latter,
+instead, has only been tested in the state of the environment in which it was generated, and there is
+no guarantee that it will function correctly in a different state.
+3.3.3    Intention Outcomes during Generation and Triggering
+It is possible to identify a couple of categories for intentions as well, depending on the outcome of the
+execution and evaluation steps they go through during the Desire Generation Phase and the Desire
+Triggering Phase, defined in the previous section.
+     Let’s first clarify when an intention is generated, what is its purpose, and how it is used. All
+intentions are created during the Desire Generation Phase, and their objective is to achieve the long-
+term goal, or a part of it, described in the desire goal description. Each intention is associated with a
+function that, when executed, makes the agent execute actions that should bring it closer to the final
+goal. As shown in Figure 3.3, during their generation, all intentions can be classified as Generated
+
+                                                    19
+Figure 3.1: Possible desire outcomes during the Generation Phase.
+
+
+
+
+                               20
+Figure 3.2: Possible desire outcomes during the Triggering Phase.
+
+
+
+
+                               21
+Correctly or Not Generated Correctly. Intentions that were not generated correctly either en-
+countered an error during their execution or were evaluated negatively by the LLM, in both cases it
+means that the intention did not reach the goal it was created for. If an intention is generated correctly,
+it is said to be Executable. Only executable intentions can be called by the functions associated to
+the intentions that will be generated in the next iterations of the control loop. Furthermore, when a
+desire is triggered during the Desire Triggering Phase, only the executable intentions that belong to
+that desire will be executed. However, an executable desire can still be invalidated if, at any point of
+the control loop, the execution of the intention fails, and in that case it will no longer be Executable.
+3.3.4    Prompting the LLM
+The architecture involves prompting the LLM multiple times to obtain goal descriptions, functions
+and evaluations, based on the data included in the prompt. Algorithm 5 and Algorithm 4 in Section
+3.2 show where the agent makes requests to the LLM. Prompts have been numbered to identify the
+different types of requests made. For each prompt, an explanation of the data provided to the LLM
+and the purpose of the prompt is given.
+    The LLM used in this implementation is ChatGPT with model name GPT-4. All requests to this
+LLM are made with two elements composing the prompt: the context and the question. The context
+is used to give instructions to the LLM about what it is expected to generate, and is used to influence
+the response. For all prompts, the context is the same. The question contains the actual request and
+differs for each prompt. The templates used can be found at:
+https://github.com/francesco-vaccari/Deliveroo2/tree/main/agent_dir/prompts.
+
+   The prompts made in the perception unit are the following:
+
+   • Perception Prompt 1: The LLM is asked to generate a perception function capable of handling
+     the events of an object type observed in the environment. A number of example events are
+     provided along with the current belief set, which is initially empty. The expected response is a
+     python function that will be used to update the belief set in the beliefs revision step.
+
+   • Perception Prompt 2: If an error occurs while processing an event, the LLM is prompted to
+     fix the perception function that encountered the error. The erroring event is also provided to
+     the LLM to help it understand what went wrong. The expected response is a python function
+     that handles events of a specific object type.
+
+   The prompts made in the control unit are the following:
+
+   • Control Prompt (1): Given the information contained in the currente belief set, and the list
+     of long-term goals achieved so far, the LLM is asked to come up with a new long-term goal
+     description that will be part of the new desire generated. As desires are generated successfully,
+     the list of long-term goals, which is initially empty, is populated with the implemented desire
+     goal descriptions.
+
+   • Control Prompt (2): This prompt is available in four different variants, slightly different in
+     the elemnts that are provided to the LLM, depending on the configuration of the architecture
+     and on the phase of the control loop. The desire goal description, the current belief set, and
+     the library of the intentions generated so far are provided in all variants. The LLM is asked
+     to generate a new intention with a short-term goal aligned with the long-term goal description
+     given. The intentions library is provided to allow the LLM to include calls to the base actions
+     and to other intentions generated previously by the LLM itself. Each intention in the library is
+     associated with its goal description to provide information on what the intention does. If the
+     architecture is configured to generate intentions in a stateless way, the library of intentions only
+     includes the base actions. The additional memory component is also provided in the prompt if
+     the last intention generation failed, which means that the feedback mechanism was activated.
+     The expected response is a new intention, which consists of a textual description and a python
+     function.
+
+                                                    22
+Figure 3.3: Possible intention outcomes during their generation.
+
+
+
+
+                              23
+    • Control Prompt (3): If an error occurs while validating the intention just generated, the agent
+      makes an attempt at fixing the mistake by prompting the LLM with the function and the error
+      that occured. All other components provided in this prompt are the same of Prompt 2.
+
+    • Control Prompt (4): After the intention is executed, and the execution terminates without
+      errors, the LLM evaluates if the agent reached the short-term goal depicted in the intention goal
+      description. To do so, the prompt includes the goal description, a copy of the belief set before
+      the execution of the plan, the current belief set, and the list of actions performed, each with
+      the associated events received. The two belief sets alone should be enough to spot what are the
+      differences in the environment, and so to determine if the goal was reached or not. The list of
+      actions performed are included to give the LLM a better understanding of all the steps the agent
+      went through. Each action is associated with the events received shortly after it was performed
+      so that it is clear what effect the action had. Moreover, the LLM is instructed to suggest how
+      to improve or fix mistakes if it evaluates that the intention goal was not achieved. The expected
+      response includes a boolean value and, in the case of a negative evaluation, the feedback on what
+      went wrong. This feedback is then stored in the memory component.
+
+    • Control Prompt (7): If during the intention execution an error occurs, the LLM is prompted
+      with the error and the function that caused it. The LLM is also provided the belief set before
+      the plan was executed, the actions that were performed before the error happened, the events
+      received associated with each action, and the current belief set. This prompt has a similar
+      purpose of Prompt 4, without the need of evaluation since the intention failed to execute. The
+      expected response is the feedback that will be then stored in memory for the next intention
+      generation.
+
+    • Control Prompt (5): When an intention is positively evaluated by the LLM, the desire
+      is evaluated as well to determine if the long-term goal was reached. To make this decision,
+      the prompt includes the desire goal description, a copy of the belief set before the desire was
+      pursued, and the current belief set. Just like when evaluating intentions, the expected response
+      is a boolean value.
+
+    • Control Prompt (6): If the desire is evaluated positively, the LLM tries to generate the
+      trigger function. The prompt provides the desire goal description and two different instances
+      of the belief set: one before the desire was originally pursued, and the current belief set. The
+      expected response is a python function that has to return a boolean value, and this value has to
+      be True when given the first belief set as input.
+
+   To facilitate parsing, the LLM is instructed to provide its responses in a JSON format, including
+only the fields requested, with no further comments, explanations, or additional information.
+3.3.5    About the environment-agnosticism of the agent
+As stated before, the architecture is environment-agnostic, but some adjustments must be made before
+running the agent. These adjustments involve the definition of the base actions that the agent can
+perform, and how the environment is perceived through the events received.
+    The environment is implemented as a server to which the agent connects as a client. To com-
+municate, a simple protocol was defined in order to allow the environment to send the events to the
+agent, and to allow the agent to send back the actions that will be executed in the environment. The
+actions are defined in a configuration file that contains, for each action, a brief description and the
+action name that is recognized by the environment. When the agent is started, the base actions are
+loaded from the configuration file and for each one an intention is created containing the description
+defined in the file and the function that sends the action name to the environment. An example of
+how actions are defined is the following:
+
+{
+     "function_name": "action_1",
+     "description": "This is a wrapper function for action_1. The agent moves by 1
+
+                                                  24
+                     cell, decreasing its first coordinate by 1.",
+     "action_name": "action_1"
+}
+
+     When the environment changes, an event related to what happened is sent to the agent. The event
+has to contain two fields: event type and object type. The event type must contain one of the following
+values: ”object added”, ”object changed”, or ”object removed”. It would be possible to remove the
+event type field and let the LLM create functions that infer this information given the belief set, but
+it is simpler and less error-prone to have the environment send this information directly, altough it
+might not be possible depending on the application. The object type is instead used directly by the
+architecture to select the correct perception function to use, and not including this field would require
+a modification of the architecture. If the structure of events were to be modified, the prompts made to
+the LLM would have to be adjusted accordingly to be consistent with the new structure. An example
+of an event is the following:
+
+{
+     "event_type": "object changed",
+     "object_type": "key",
+     "object": {"id": 1, "coordinates": [2, 2], "carried_by_id": 1}
+}
+
+3.3.6    Architecture Configurations
+The architecture developed can be run with different starting configurations. These options can
+influence both the perception and control units, and change the way the agent behaves.
+
+    • Perception Generation Only On Error: If this option is enabled, the perception functions
+      in the perception unit are generated only when an error occurs while processing an incoming
+      event. Alternatively, perception functions are replaced after a certain period of time, and the
+      interval that passes between one generation and the next is increased as time goes on. By default,
+      this option is disabled, but all experiments that were run and that will be explained in the next
+      chapter have this option enabled as it greatly reduces the cost of prompting the LLM, and it is
+      not necessary with the environment used.
+
+    • Stateless Intention Generation: When the LLM generates a new intention, it is given the
+      possibility of calling other previously generated intention functions. If this option is enabled,
+      the LLM can only include calls to the base action that the agent can perform, thus making the
+      LLM unaware of previous intentions. By default this option is disabled.
+
+    • User Generated Desire: During the generation of desires, the LLM is responsible for proposing
+      the goal description of the deisire. With this option enabled, it is the user that provides this
+      goal description, and the LLM in only responsible of the generation of the intentions that should
+      achieve the user-proposed goal. By default this option is disabled, but might be very relevant in
+      the context of AI assistants where the user describes with natural language what they want to
+      make happen in the environment.
+
+    • No Desire Triggering: With this is option enabled, the desire triggering phase is skipped
+      altogether, which means that all desires that are potentially triggerable are never triggered and
+      executed. By default this option is disabled.
+
+    • No Evaluation of Triggered Desires: After a desire is triggered and executed the LLM has
+      to evaluate if the desire goal was actually reached to verify that the desire is working correctly.
+      If this option is enabled, this evaluation step is skipped and all desires, once they pass the
+      generation phase, are assumed to be always correct. By avoiding this evaluation step, the LLM
+      is prompted less, reducing the cost of running the agent, but if any of the desires are not working
+      correctly, the agent will not be able to detect it. By default this option is disabled.
+
+                                                   25
+4        Experiments
+This chapter presents the experiments conducted to evaluate the proposed architecture. First, the
+environment and the elements that compose it are described. Then, the typologies of experiments and
+their purpose are explained, as well as the methodology used to run and evaluate the experiments.
+Finally, the results are going to be showed with a detailed analysis of various aspects of the generated
+desires and intentions.
+
+4.1     Environment
+The virtual environment consists of a two-dimensional grid map made of cells. Each cell can contain
+the objects that the agent interacts with. Let us first describe what are the actions that the agent can
+perform:
+
+    • Move (Up, Down, Left, Right): The agent has the ability to move around the map. With
+      each movement action, the agent makes one step in the adjacent cell in the direction specified.
+
+    • Pick Up: The agent can pick up certain objects from the ground, as long as they are in the
+      same cell as the agent. Once picked up, the object coordinates will change as the agent moves
+      on the map. The pick-up action can be performed on multiple objects at the same time.
+
+    • Put Down: The agent can put down the objects it is carrying. The objects, once put down,
+      will be located in the same cell as the agent. The put down action drops all the objects that are
+      being carried by the agent.
+
+The pick-up and put-down actions are not specific to any object, meaning that the agent does not
+need to know or express what object it is executing the action on. If the agent tries to perform an
+action that is not allowed in the current environment, it will simply be ignored. For example, trying
+to move into a non-existent cell will cause the agent to remain in the same position.
+    The elements that the agent can interact with are the following:
+
+    • Parcel: All parcels have a score associated with them. Parcels can be picked and put down in
+      any cell. If the agent puts down a parcel in a delivery cell, the parcel’s score is added to the
+      agent’s total score.
+
+    • Battery: When picked up, batteries are immediately consumed and increase the agent’s energy.
+
+    • Key: Keys are objects that can be picked up and put down in any cell. If an agent is holding a
+      key, it can move through doors. Keys can open all doors and are not consumed when picked up.
+
+    • Door: Doors cannot be picked up or put down by the agent. Their objective is to block the
+      agent’s path. If a cell contains a door, the agent will need to hold a key to move through it.
+
+Depending on which of these elements are configured to spawn, the agent will have different attributes:
+a score to keep track of the accumulated points that are obtained by delivering parcels, an energy
+value that goes down with each action performed, and a key attribute that indicates whether the agent
+is holding a key.
+    Each cell that composes the grid of the map is of one of the following types:
+
+    • Walkable: This is the default cell type. The agent can move on these cells.
+
+    • Non-Walkable: The agent cannot move on non-walkable cells. These cells are used to represent
+      walls.
+
+                                                  26
+   • Delivery: These cells can be walked on by the agent. If the agent puts down some parcels in a
+     delivery cell, the agent’s score is increased by the sum of the scores of the parcels delivered.
+
+   • Double Delivery: This cell type is the same as the delivery cell, except that the agent receives
+     double the score it would receive in a normal delivery cell.
+
+   • Parcel Spawn: In this type of cell parcels are spawned.
+
+   • Battery Spawn: In this type of cell batteries are spawned.
+
+The spawning types of cells are not strictly necessary since the agent can infer the position of parcels
+and batteries from the objects directly. However, the presence of these cells enables the agent to plan
+in a predictive way, for example by moving to a parcel spawn cell to pick up parcels that do not yet
+exist on the map. Furthermore, redundance of information can help the LLM produce more consistent
+results.
+    For the user that spectates an experiment, the environment is displayed as shown in Figure 4.1.
+
+
+
+
+                                       Figure 4.1: Environment
+
+
+4.2    Methodology
+A total of 24 experiments were conducted, 3 for each of the 8 typologies designed. Experiments that
+belong to the same typology start with the same initial state of the environment. The initial state is
+defined in the configuration of the typology, which is different for each one. Typologies can be divided
+into two categories:
+
+   • Typologies 1 to 4: The agent does not have the ability to trigger desires, meaning that once
+     a desire is generated correctly, it is never executed again. The purpose of these typologies is to
+     test whether the agent can at least move on the map and complete meaningful objectives. As
+     explained in Section 3.3.6, this is done by disabling the desires triggering phase.
+
+   • Typologies 5 to 8: The agent has the ability to trigger desires, which means that once a
+     desire is generated correctly, it can be triggered and executed in future iterations of the control
+     loop during the desire triggering phase. The purpose of these typologies is not only to test
+     whether the agent can reach the objectives set for the experiments, but also to test if it is able
+     to continuously reach its goals by triggering the desires implemented without needing the LLM
+     to generate new ones.
+
+Within each category, as the number of the typology increases, experiments designed become more
+complex. The complexity of the experiments is increased by adding more elements to the environment,
+such as batteries, keys, and doors.
+
+                                                  27
+    All experiments have a total of 4 desire generation attempts before they are stopped. In typologies
+1 to 4, the experiment is also stopped as soon as the agent reaches the objective of delivering one
+parcel. In contrast, in typologies 5 to 8, experiments are always carried out until the limit of 4 desires
+is reached, regardless of the number of parcels delivered.
+    Experiments of typology 8 are different than all others since they are divided into 6 steps, each
+with a different configuration of cells and objects. The purpose of this typology is to introduce the
+agent in the first 5 steps to the objects and cells it can interact with, and then test if, using the learned
+desires, it can complete step 6 without prompting the LLM.
+
+
+4.3     Results
+We are first going to consider the evolution of the agent, the objectives it reached and the abilities it
+learned. Then, we are going to analyse the desires and intentions generated by the LLM, considering
+both quantitative and qualitative aspects.
+
+4.3.1    Results of the Evolution Process
+To evaluate whether the agent’s evolution is successful, it is possible to define a number of practical
+objectives that the agent is expected to reach in the experiments. The objectives identified are different
+for each typology, as they depend on which elements are present in the environment. The objectives
+defined, and whether the agent was capable of reaching them, are shown in tables 4.1, 4.2, 4.3, 4.4, 4.5,
+4.6, 4.7 and 4.8. In typologies 3 and 4, it is reported in parentheses the type of delivery cell in which
+the parcels were delivered: 1x means the normal delivery cell, 2x means the double-points delivery
+cell. In typologies 5, 6 and 7, the number reported for the ’deliver a parcel’ objective indicates the
+number of deliveries performed, while the number in parentheses indicates the total number of parcels
+delivered. For clarity, a delivery is defined as the agent picking up one or more parcels, moving to the
+delivery cell, and putting down the parcels. This journey, regardless of the number of parcels picked
+up, is considered as one delivery.
+
+
+          Objective                       Experiment 1        Experiment 2        Experiment 3
+          move on the map                     Yes                 Yes                 Yes
+          move to a parcel spawn cell         Yes                 Yes                 Yes
+          pick up a parcel                    Yes                 Yes                 Yes
+          move to a delivery cell             Yes                 Yes                 Yes
+          deliver a parcel                    Yes                 Yes                 Yes
+
+                      Table 4.1: Objectives reached in experiments of typology 1.
+
+
+
+
+          Objective                       Experiment 1        Experiment 2        Experiment 3
+          move on the map                     Yes                 Yes                 Yes
+          move to a parcel spawn cell         Yes                 Yes                 Yes
+          pick up a parcel                    Yes                 Yes                 Yes
+          move to a delivery cell             Yes                 Yes                 Yes
+          deliver a parcel                    Yes                 Yes                 Yes
+          move to key                         Yes                 Yes                 Yes
+          pick up key                         Yes                 Yes                 Yes
+          open the door                       Yes                 Yes                 Yes
+
+                      Table 4.2: Objectives reached in experiments of typology 2.
+
+                                                     28
+         Objective                     Experiment 1      Experiment 2      Experiment 3
+         move on the map                   Yes               Yes               Yes
+         move to a parcel spawn cell       Yes               Yes               Yes
+         pick up a parcel                  Yes               Yes               Yes
+         move to a delivery cell           Yes               Yes               Yes
+         deliver a parcel                Yes (2x)          Yes (2x)          Yes (1x)
+         move to key                       Yes               Yes               Yes
+         pick up key                       Yes               Yes               Yes
+         open the door                     Yes               Yes                No
+
+Table 4.3: Objectives reached in experiments of typology 3. The value in parentheses indicates the
+type of delivery cell in which the parcel was delivered: 1x means the normal delivery cell, 2x means
+the double-points delivery cell.
+
+
+         Objective                     Experiment 1      Experiment 2      Experiment 3
+         move on the map                   Yes               Yes               Yes
+         move to a parcel spawn cell       Yes               Yes               Yes
+         pick up a parcel                  Yes               Yes               Yes
+         move to a delivery cell            No                No               Yes
+         delivery a parcel                  No                No             Yes (2x)
+         move to key                        No               Yes               Yes
+         pick up key                        No                No               Yes
+         open the door                      No                No               Yes
+
+Table 4.4: Objectives reached in experiments of typology 4. The value in parentheses indicates the
+type of delivery cell in which the parcel was delivered: 1x means the normal delivery cell, 2x means
+the double-points delivery cell.
+
+
+         Objective                     Experiment 1      Experiment 2      Experiment 3
+         move on the map                   Yes               Yes               Yes
+         move to a parcel spawn cell       Yes               Yes               Yes
+         pick up a parcel                  Yes               Yes               Yes
+         move to a delivery cell           Yes               Yes               Yes
+         deliver a parcel                 4 (11)            6 (21)            4 (13)
+
+Table 4.5: Objectives reached in experiments of typology 5. The value reported for the ’deliver a
+parcel’ objective indicates the number of deliveries performed. The number in parentheses indicates
+the total number of parcels delivered.
+
+
+        Objective                      Experiment 1      Experiment 2      Experiment 3
+        move on the map                     Yes              Yes               Yes
+        move to a parcel spawn cell         Yes              Yes               Yes
+        pick up a parcel                    Yes              Yes               Yes
+        move to a delivery cell             Yes              Yes               Yes
+        deliver a parcel                   2 (8)            9 (25)            5 (19)
+        move to a battery spawn cell        Yes              Yes               Yes
+        pick up battery                     No               Yes               Yes
+
+Table 4.6: Objectives reached in experiments of typology 6. The value reported for the ’deliver a
+parcel’ objective indicates the number of deliveries performed. The number in parentheses indicates
+the total number of parcels delivered.
+
+                                                29
+        Objective                         Experiment 1    Experiment 2       Experiment 3
+        move on the map                       Yes             Yes                Yes
+        move to a parcel spawn cell           Yes             Yes                Yes
+        pick up a parcel                      Yes             Yes                Yes
+        move to a delivery cell               Yes             Yes                Yes
+        deliver a parcel                     2 (11)          4 (20)             1 (10)
+        move to a battery spawn cell          Yes             Yes                Yes
+        pick up battery                       Yes             Yes                 No
+        move to key                           Yes             Yes                Yes
+        pick up key                           Yes             Yes                Yes
+        open the door                         Yes             Yes                Yes
+
+Table 4.7: Objectives reached in experiments of typology 7. The value reported for the ’deliver a
+parcel’ objective indicates the number of deliveries performed. The number in parentheses indicates
+the total number of parcels delivered.
+
+
+
+
+      Objective                            Experiment 1      Experiment 2      Experiment 3
+      complete step 1 (pick up parcel)         Yes               Yes               Yes
+      complete step 2 (deliver parcel)         Yes               Yes               Yes
+      complete step 3 (pick up battery)        Yes               Yes               Yes
+      complete step 4 (pick up key)            Yes               Yes               Yes
+      complete step 5 (open the door)          Yes               Yes                No
+      move on the map                          Yes               Yes               Yes
+      move to a parcel spawn cell              Yes               Yes               Yes
+      pick up a parcel                         Yes               Yes               Yes
+      move to a delivery cell                   No               Yes               Yes
+      deliver a parcel                          No               Yes               Yes
+      move to a battery spawn cell             Yes                No                No
+      pick up battery                          Yes                No                No
+      move to key                              Yes               Yes               Yes
+      pick up key                              Yes               Yes               Yes
+      open the door                             No               Yes               Yes
+
+Table 4.8: Objectives reached in experiments of typology 8. The completions of first 5 steps are also
+considered as objectives.
+
+
+
+    Typology 8 experiments are structured in a different way. In all other experiments the environ-
+ment map and elements are already present at the beginning of the run, and the agent immediately
+knows what it can expect to find. In the worst case, more parcels or batteries will spawn during the
+experiment, but at least one of the objects is already in its predefined position. Typology 8 involves
+a dynamic environment where the types of cells that constitute the map and the elements that are
+present change from step to step. The agent first goes through 5 steps to learn to perform various
+tasks, which will then be tested in step 6 where all objects are present at the same time. However,
+the agent still has the ability to prompt the LLM even in step 6. In fact, none of the objectives of
+this last step were reached thanks to previously implemented desires, but only thanks to the LLM’s
+intervention.
+   As the tables show, the agent struggles the most in typologies 4 and 8 where it is not able to
+perform a delivery in all experiments. Table 4.9 shows how, in the most complex experiments, the
+agent did not always succeed in delivering parcels. Overall, the success rate of the agent is 87.5%.
+
+                                                 30
+                                      Typology      Success Rate
+                                         1               1.0
+                                         2               1.0
+                                         3               1.0
+                                         4              0.33
+                                         5               1.0
+                                         6               1.0
+                                         7               1.0
+                                         8              0.67
+
+                                 Table 4.9: Success Rates by Typology
+
+    Other than showing the objectives reached in the experiments, it is also important to evaluate
+whether the agent, after reaching an objective, did really learn how to perform the task without
+the need of the LLM. A learned ability is represented by a desire that was generated correctly and
+reached its goal. However, we can only consider desires that were executed at least once after the
+initial generation. This is because those desires proved to work in a state of the environment that
+was different from the one in which they were generated; and since desires cannot be triggered in
+typologies 1 to 4, we can only evaluate this aspect in typologies 5 to 8:
+
+   • Typology 8: As already mentioned before, desires generated in the first five steps were not
+     reused successfully in step 6. The only desire that was able to trigger and execute successfully
+     in step 6 was generated during this step. However, by analysing the intentions and the trigger
+     function directly in the code it is possible to see that the desire was evaluated as successful even
+     though it is not semantically correct, and is also not general enough to be used in different states
+     of the environment.
+
+   • Typology 5: Across all three experiments of typology 5, three desires were able to trigger and
+     be evaluated as successful. The first one is correct, both in the function that generates the plan
+     and in the trigger function that dictates when it should be executed; in this instance the agent
+     was actually able to learn to navigate the map to collect and deliver parcels, and would be able
+     to do so without needing to prompt the LLM again. The second desire’s intentions are also able
+     to generate a plan that leads to parcels being delivered, but some parts of the trigger function do
+     not make sense and render the desire not general enough to be considered a fully learned ability.
+     The third desire is not completely correct either as the intentions that generate the plan would
+     not work correctly on a different configuration of the map, and the trigger function is partially
+     incorrect.
+
+   • Typology 6: In typology 6 only one desire was triggered successfully. This desire consists of
+     3 different intentions that should achieve the goal of collecting and delivering parcels while also
+     recharging with batteries when needed. Although not optimal, the desire can be considered as a
+     learned ability since it would work in different states of the environment and leads the agent to
+     complete the given objective. The trigger function is also correct and aligned with the desire’s
+     goal.
+
+   • Typology 7: Typology 7 produced two desires triggered and evaluated positively. The first
+     desire is correct both in the function that generates the plan and in the trigger function, and
+     allows the agent to collect batteries as soon as they appear on the map. The second desire is
+     correct but not general since it works only with map configurations that are identical to the one
+     in which the desire was generated.
+
+    To summarize, across all experiments of typologies 5 to 8, a total of three abilities can be considered
+learned by the agent, which could be used to perform the tasks without needing to prompt the LLM.
+The agent learned to:
+
+   • Collect and deliver parcels in typology 5.
+
+                                                    31
+   • Collect and deliver parcels while also collecting batteries in typology 6.
+
+   • Collect batteries in typology 7.
+
+Although it might seem that the agent mostly failed in learning, it is important to consider that these
+are complex tasks that require the agent to plan and execute multiple steps in the correct order and at
+the correct time. On the other hand, the number of attempts that were required to reach this result is
+definitely not low, with only three fully correct desires out of the total twelve experiments conducted.
+    Another consideration that can be done about the learned desires is that two of them exhibit a
+proactive or predictive behaviour. The functions implemented do not search for objects like parcels
+or batteries in the map, but instead they navigate the agent to the cells that are supposed to contain
+these objects: the parcel spawn cell or the battery spawn cell. This behaviour might not be desirable
+in a real-world scenario, but it is an interesting result, nonetheless.
+    Overall, the agent is able to achieve the self-proposed goals that end up being aligned with the set
+objectives in each experiment. However, the generated code is mostly not general enough to be used
+in different states of the environment, meaning that the agent can complete tasks, but often only with
+the help of the LLM. The code obtained this way is likely to lead to the desired result but is not good
+enough to be considered a learned ability.
+4.3.2    Analysis of Desires
+To evaluate the quality of the desires generated by the LLM, it is possible to classify them into different
+categories, as already explained in Section 3.3.2. The categories that can be identified are:
+
+   • Satisfied: The desire goal description was achieved, as evaluated by the LLM.
+
+   • Not satisfied: The desire goal description was not achieved and the limit of 3 intentions failed
+     in a row was reached.
+
+Once a desire is satisfied, its trigger function is generated by the LLM and, depending on the result
+of this generation, the desire can be further classified as:
+
+   • Triggerable: The trigger function was generated correctly, and the desire can be triggered in
+     future iterations of the control loop during the desire triggering phase.
+
+   • Not Triggerable: The LLM generated a trigger function, but, during testing, the function
+     encountered a runtime error, returned a value that was not a boolean, or returned ’False’ when
+     given as input the instance of the belief set that was saved when the desire was initially proposed.
+     All these three cases lead to an invalid trigger function that cannot be used to trigger the desire
+     in future iterations of the control loop.
+
+Desires that are triggerable are not necessarily triggered during the course of the experiment, meaning
+that a further distinction can be made:
+
+   • Triggered: During the desire triggering phase, the trigger function associated to the desire
+     returned ’True’. When this happens, the desire is triggered, meaning that its intentions create
+     and execute a plan that leads, hopefully, to the desire goal being achieved.
+
+   • Untriggered: The trigger function never returned ’True’ in any of the desire triggering phases,
+     meaning that the desire was never executed.
+
+Desires that are untriggered are considered to be correct but are never proven to work in a state of
+the environment different from the one of the initial desire generation. For this reason, these desires
+were not considered as learned abilities in the previous section. Out of the desires that were actually
+triggered, a further classification can be made based on the result of the triggered execution:
+
+   • Still Triggerable After: The desire was triggered, executed, and the LLM evaluated that its
+     goal was achieved. This category is composed of desires that can be considered learned abilities,
+     and are the ones analysed in the previous section.
+
+                                                    32
+   • Not Triggerable After: The desire was triggered, executed, but either a runtime error hap-
+     pened during execution, or the LLM evaluated that the desire goal was not achieved once it
+     finished executing. This category is composed of desires that were believed to be functioning
+     but were proven to not work in a different state of the environment.
+
+
+
+
+A triggerable desire that goes untriggered for the whole duration of the experiment does not hold the
+same value of a desire that was triggered and was evaluated as still triggerable after. The former is
+only potentially working, while the latter has a much greater chance of being an actual learned ability.
+
+    A total of 88 desires were generated across all experiments. The distribution of the desires in the
+categories described above is shown in Figure 4.2. It is possible to notice how most of the desires
+generated do not even exit the generation phase successfully and are classified as Not satisfied. In
+fact, this category of desires is the 37.5% of the total. After a desire is evaluated as Satisfied, it is
+very likely that their trigger function is generated correctly as 81.8% of them fall into the Triggerable
+category. Out of the triggerable desires, considering only typologies 5 to 8, 90.5% of desires were then
+triggered but only 58.3% of those were evaluated as Still Triggerable After the execution. This
+means that only 11.3% of the total desires generated were proven to work even after their generation
+phase. However, as explained above in the in-depth analysis, only 3 of these 7 desires can actually be
+considered learned abilities.
+
+
+
+
+                     Figure 4.2: Number of desires in each category by typology
+
+
+
+
+   Considering the triggered desires, it is possible that they were executed multiple times before
+being invalidated. For example, in typology 8 the agent finishes the experiment with only one desire
+that was triggered and evaluated as Still Triggerable After, but this desire executed six times
+and was always evaluated as successful. For this reason, Figure 4.3 shows the number of triggers
+that happened in typologies 5 to 8 and their outcomes. A trigger is a Failure if the desire either
+encounters an error during execution, or is evaluated negatively by the LLM, while it is a Success if
+the execution terminates correctly and the LLM evaluates that the desire goal was reached.
+
+                                                   33
+               Figure 4.3: Number of triggers and their outcomes in typologies 5 to 8
+
+    Tables 4.10, 4.11, 4.12 and 4.13 show the outcome of each trigger in detail. As explained above, a
+trigger can fail for one of two reasons: there is a runtime error during execution, or the LLM evaluates
+the goal as not reached once the execution terminates. For triggers that failed, the reason for the
+failure is reported in the tables. Since all desires are invalidated and are no longer triggerable after
+the first failure, some desires were triggered multiple times but ultimately failed in the last execution;
+for these desires the reason for the failure in the last trigger is reported. In total, 12 desires were
+triggered but then invalidated. Out of these 12, 7 desires encountered an error during execution, and
+5 were instead negatively evaluated by the LLM.
+
+   Experiment       Desire Number        # Times Triggered         Outcome        Failure Reason
+       1                   1                    1                   Failure       Execution Error
+       1                   3                    1                   Success               -
+       2                   1                    1                   Failure      Negative Evaluation
+       2                   3                    2                   Success               -
+       3                   1                    1                   Success               -
+
+                  Table 4.10: Number of triggers and their outcomes for Typology 5
+
+
+   Experiment       Desire Number        # Times Triggered         Outcome        Failure Reason
+       1                   3                    1                   Success               -
+       2                   3                    1                   Failure      Negative Evaluation
+       3                   1                    1                   Failure       Execution Error
+       3                   3                    2                   Failure      Negative Evaluation
+
+                  Table 4.11: Number of triggers and their outcomes for Typology 6
+
+
+     Experiment       Desire Number        # Times Triggered         Outcome      Failure Reason
+         1                   3                    1                   Success            -
+         1                   4                    1                   Success            -
+
+                  Table 4.12: Number of triggers and their outcomes for Typology 7
+
+                                                   34
+   Experiment       Desire Number       # Times Triggered         Outcome       Failure Reason
+       1                   2                   1                   Failure     Negative Evaluation
+       1                   4                   1                   Failure      Execution Error
+       2                   1                   1                   Failure     Negative Evaluation
+       2                   4                   1                   Failure      Execution Error
+       3                   2                   1                   Failure      Execution Error
+       3                   3                   1                   Failure      Execution Error
+       3                   2                   1                   Failure      Execution Error
+       3                   8                   6                   Success              -
+
+                 Table 4.13: Number of triggers and their outcomes for Typology 8
+
+
+4.3.3   Quantitative Analysis of Intentions
+Across all experiments, a total of 293 intentions were generated. The number of intentions generated
+for experiments of each typology is shown in Figure 4.4. The number of intentions increases with the
+complexity of the experiments within the two categories of typologies 1 to 4 and 5 to 7. Especially
+when comparing typology 1 with typology 4, and typology 5 with typology 6 or 7. Typology 8 should
+not be considered as its experiments are much longer by design.
+
+
+
+
+                         Figure 4.4: Number of intentions for each typology
+
+
+    When an intention is first generated, a description of its goal is provided along with the function
+that should achieve it. This function is executed and the actions are performed by the agent. However,
+the execution of the function can fail if any error occurs, and in that case the intention is considered
+Not Generated Correctly. The intention falls into the same category even if, after the execution
+has terminated, the LLM evaluates that the intention did not achieve its goal. If instead the LLM
+evaluates that the intention goal was reached, the intention is considered Generated Correctly and
+becomes executable. Figure 4.5 shows the number of intentions generated correctly and not generated
+correctly for each typology. The majority of intentions fail to generate correctly; in fact, only 25.9%
+of the total intentions were generated correctly. An exception can be observed in typology 1, where
+not only the number of intentions generated is the lowest, but also the relative number of correct
+generations is the highest: this is probably due to how simple this category of experiments is.
+
+                                                  35
+Figure 4.5: Number of intentions generated correctly and not generated correctly for each typology
+
+
+
+
+    When a desire is triggered, only its executable intentions are run. If an error occurs during this
+step, the intention that encountered the error will be invalidated and will no longer be executable.
+Once generated correctly, intentions are added to the intentions library and are available to be used
+and called by future intentions. If an intention is called but an error occurs during its execution, it is
+invalidated. These two ways in which an intention can be rendered not executable after its generation
+is the reason why the number of executable intentions decreases during the course of the experiments.
+Out of the 293 total intentions created, 76 were generated correctly (25.9%), but only 59 were still
+executable at the end of the experiment (20.1%). This is shown in Figure 4.6 for typologies 1 to 4,
+and in Figure 4.7 for typologies 5 to 8. Since desire triggering is disabled in the first four typologies,
+almost all intentions that are generated correctly are still executable at the end of the experiment,
+with only one exception: if an intention is called three times in a row by newly generated intentions
+and they all fail, the intention called is invalidated as a precaution since it is possible that it is not
+actually achieving the goal it is saying to achieve. Differently from typologies 1 to 4, in typologies 5
+to 8 the number of executable intentions always decreases, showing that an error during the desire
+triggered execution is the most common reason for an intention to be invalidated.
+
+                                                   36
+Figure 4.6: Fraction of intentions generated correctly and still executable at the end of the experiment
+for typologies 1 to 4
+
+
+
+
+Figure 4.7: Fraction of intentions generated correctly and still executable at the end of the experiment
+for typologies 5 to 8
+
+
+    Given the intentions that were not correctly generated, we can look at what was the cause of the
+failure: an error occurred during the execution of the intention function, or the LLM evaluated that
+the goal was not reached after the execution. Figure 4.8 shows, out of the 217 intentions that did not
+generate correctly (74.1%), what is the reason of this failure. Across all typologies failures by error
+and failures by evaluation are somewhat balanced, with a spike of execution errors in typology 5 for
+which it was not possible to find an explanation.
+
+                                                  37
+                    Figure 4.8: Reasons of failure during generation of intentions
+
+4.3.4    Qualitative Analysis of Intentions
+In this section an analysis of the quality of intentions is performed. First by using metrics that measure
+complexity in the generated code, and then by comparing between categories of quality, identified by
+manually evaluating the intentions.
+
+Quality of Intentions Generated
+To evaluate the quality of the intentions generated, we can use Radon [1], a tool that can calculate
+different metrics for Python code. Of these metrics, we are interested in the following:
+
+   • Cyclomatic Complexity: Cyclomatic Complexity corresponds to the number of possible de-
+     cisions that a block of code contains plus 1. For example, an if statement or a for loop adds
+     a value of 1 to the complexity. This number, also called McCabe’s Number, is equal to the
+     number of linearly independent paths through the code. The higher the value of the Cyclomatic
+     Complexity, the more complex a block of code is.
+
+   • Halstead Effort: The Halstead metrics are based on the number of operators and operands in
+     a block of code and consist of a series of measures that can be summarized by the Effort. The
+     Effort is a measure that can be translated into the time required to write the code and is based
+     on the difficulty of the program to understand and write, and the volume of the code which
+     depends on the size of the block. The higher the value of the Halstead Effort, the more complex
+     a block of code is.
+
+   • Logical Lines of Code: This metric is simply a measure of the logical lines of code contained
+     in a block. The higher the value of the Logical Lines of Code, the longer a block of code is.
+
+   • Maintainability Index: This metric is a combination of Cyclomatic Complexity, Halstead
+     Volume and number of source lines of code. It measures how maintainable, how easy to change
+     and support, a block of code is. The higher the value of the Maintainability Index, the more
+     maintainable a block of code is.
+
+Radon defines a number of ranks for Cyclomatic Complexity scores and for Maintainability Index
+values, described in Table 4.14 and Table 4.15.
+
+                                                   38
+            Rank     CC score             Risk              Interpretation
+             A         1-5                Low               Simple block
+             B        6 - 10              Low               Well structured and stable block
+             C        11 - 20          Moderate             Slightly complex block
+             D        21 - 30      More than moderate       More complex block
+             E        31 - 40             High              Complex block, alarming
+             F         41+             Very high            Error-prone, unstable block
+
+       Table 4.14: Cyclomatic Complexity (CC) ranks by score and associated interpretation
+
+
+
+
+                                Rank     MI score        Maintainability
+                                 A       100 - 20        Very high
+                                 B        19 - 10        Medium
+                                 C         9-0           Extremely low
+
+                        Table 4.15: Maintainability Index (MI) ranks by score
+
+
+
+
+     Given an intention, we take its associated function and calculate the metrics described above,
+and then compute the mean for each metric between intentions that belong to the same typology of
+experiments. A confidence interval can also be calculated to show the variability of the metrics within
+the typology. The results are shown in Figures 4.9, 4.10, 4.11 and 4.12. The Cyclomatic Complexity
+scores mostly fall into the second best rank (B), with the exception of typology 5 where the mean value
+is in the third rank (C); as experiments in typologies increase in difficulty of the initial configuration,
+the complexity of intentions does not seem to follow the same trend, but remains mostly stable, if not
+slightly decreasing. The Halstead Effort shows a similar trend, with values remaining similar across
+typologies, with typologies 4 and 8 showing low values, and with typology 5 that is an outlier like
+before. The same happens considering the average length of the intention functions, with again the
+lowest values being in typology 4 and 8, and the highest in typology 5. The Maintainability Index is
+again showing similar results, with all values falling into the best rank defined (A). In maintainability,
+typology 6 scores the highest value, which is a result not reflected in the other metrics, for example
+with a lower complexity. The variability of the metrics within typologies is shown by the confidence
+intervals, which are quite large in all cases, showing that the complexity, length, and maintainability
+of intentions changes a lot even within the experiments of the same typology.
+
+                                                    39
+Figure 4.9: Mean value and 95% confidence interval of Cyclomatic Complexity for intentions by
+typology
+
+
+
+
+ Figure 4.10: Mean value and 95% confidence interval of Halstead Effort for intentions by typology
+
+                                                40
+Figure 4.11: Mean value and 95% confidence interval of logical lines of code for intentions by typology
+
+
+
+
+Figure 4.12: Mean value and 95% confidence interval of Maintainability Index for intentions by typol-
+ogy
+
+
+    Regarding experiments of typology 5, this outlier behaviour was already observed in Figure 4.8.
+However, this anomaly is not reflected in the number of intentions generated or in the number of
+incorrect generations, as Figure 4.5 shows, which is similar to other typologies. Furthermore, the
+agent was able to reach all objectives set for this typology, as explained in Table 4.5. The fact that
+intentions of typology 5 fail a lot more often due to execution errors, and the fact that they produce
+the worst results in all metrics, does not cause the agent to not reach the set objectives and is not
+reflected in more incorrect intention generations. This result shows that the quality of the intentions
+is not necessarily related to the success of the agent in its evolution process and is also not related to
+
+                                                   41
+the complexity of the tasks that the agent has to perform, since typology 5 is the simplest one out of
+the last four.
+
+Degradation of Quality of Intentions
+Over the course of an experiment, as the agent learns more complex abilities, and as the environment
+fills with new spawned objects, one would expect the quality of intentions generated to degrade,
+becoming more complex and less maintainable. To test this hypothesis, it is possible to compare the
+average metrics of intentions generated in the first half of experiments against the average metrics of
+intentions generated in the second half. This comparison is performed using the Student’s T-test. If
+it is true that the quality of intentions degrades, then the metrics should be worse in the second half
+of the experiments. However, the test showed that there is no significant difference, meaning that
+the quality of intentions does not degrade over time. Furthermore, in only once case the p-value was
+under the required threshold of 0.05 for at least one of the metrics, and it happened in typology 5,
+as shown in Table 4.16. The difference is significant only in the number of lines of code, but it is in
+the opposite direction: intentions in this typology are more complex, less maintainable, and longer
+in the first half of the experiments. This might be due to the fact that intentions generated later in
+the experiment can call other correctly generated intentions that were created before, thus creating
+functions that are shorter and simpler.
+
+                        Metric                     T-test Statistic    P-value
+                        Cyclomatic Complexity            2.66           0.117
+                        Maintainability Index           -3.82           0.062
+                        Logical Lines of Code            6.24           0.025
+                        Halstead Effort                  0.58           0.621
+
+Table 4.16: Student’s T-test results for metrics comparison between first and second half of intentions
+in experiments of typology 5
+
+
+Comparison between Satisfied and Not Satisfied Desires
+As explained before, a desire is considered satisfied if the LLM evaluates that, through the execution of
+its intentions, the goal of the desire was achieved. This means that we have intentions that belong to
+a satisfied desire, and intentions that belong to a not satisfied desire. We can compare the metrics of
+these two groups of intentions to see if there is a significant difference between them. Once again, the
+comparison is performed using the Student’s T-test. The number of intentions that belong to satisfied
+desires is 78, while the number of intentions that belong to non-satisfied desires is 215. The results
+of the test, shown in Table 4.17, do not highlight a significant difference between the two groups,
+meaning that the quality of intentions, as measured by the metrics, is not related to the satisfaction
+of the desires.
+
+                        Metric                     T-test Statistic    P-value
+                        Cyclomatic Complexity           0.685           0.494
+                        Maintainability Index           -1.545          0.124
+                        Logical Lines of Code           -0.290          0.772
+                        Halstead Effort                 0.114           0.910
+
+Table 4.17: Student’s T-test results for metrics comparison between intentions that belong to satisfied
+and not satisfied desires
+
+
+Comparison between Correctly and Not Correctly Generated Intentions
+It is possible to perform a similar comparison considering intentions that were generated correctly
+against intentions that were not generated correctly. An intention generated correctly is an intention
+that did not encounter any error during execution and was evaluated by the LLM as having reached its
+
+                                                   42
+goal. The number of intentions generated correctly is 76, while the number of intentions not generated
+correctly is 217. The results of the Student’s T-test are shown in Table 4.18. The comparison does
+not show a significant difference between the two groups, meaning that the outcome of the generation
+process is not related to the quality of the intentions, as measured by the metrics.
+
+                       Metric                    T-test Statistic    P-value
+                       Cyclomatic Complexity          -1.797          0.074
+                       Maintainability Index          0.551           0.583
+                       Logical Lines of Code          -1.480          0.141
+                       Halstead Effort                0.629           0.530
+
+Table 4.18: Student’s T-test result for metrics comparison between generated correctly and not gen-
+erated correctly intentions
+
+
+Categorisation by Quality of Intentions
+To evaluate the quality of intentions in a way that cannot be measured by the metrics provided
+by Radon, it is possible to manually go through all intentions and evaluate them based on how
+their associated function accesses the data contained in the belief set. Based on this evaluation, the
+intentions can be classified in the following categories:
+
+   • Adaptive: All the information about the environment is obtained accessing the variable con-
+     taining the belief set. This function is able to adapt to many states of the environment.
+
+   • Grounded: The function does not access the belief set to obtain all the information it needs
+     to execute. For example, the coordinates of a delivery cell are hard coded in the function. This
+     function is not able to fully adapt to different states of the environment.
+
+   • Predetermined: The function is simply a list of actions that the agent executes. In this case,
+     the LLM, through its ’reasoning’ capabilities, generated the plan that the agent should execute
+     by inferring it from the given current belief set. This function cannot adapt to any state of the
+     environment.
+
+Examples are provided for each category of functions.
+
+   • Adaptive function
+
+          def function_7():
+              global belief_set
+              parcel_coordinates = belief_set[’parcel’][1][’coordinates’]
+              agent_coordinates = belief_set[’agent’][’coordinates’]
+              while agent_coordinates != parcel_coordinates:
+                  if agent_coordinates[0] < parcel_coordinates[0]:
+                      function_2()
+                      agent_coordinates[0] += 1
+                  elif agent_coordinates[0] > parcel_coordinates[0]:
+                      function_1()
+                      agent_coordinates[0] -= 1
+                  if agent_coordinates[1] < parcel_coordinates[1]:
+                      function_4()
+                      agent_coordinates[1] += 1
+                  elif agent_coordinates[1] > parcel_coordinates[1]:
+                      function_3()
+                      agent_coordinates[1] -= 1
+              function_5()
+
+
+                                                 43
+   • Grounded function
+
+          def function_34():
+              global belief_set
+              if belief_set[’agent’][’coordinates’] == [0, 0] and len(belief_set[
+                  ’agent’][’parcels_carried_ids’]) > 0:
+                  function_6()
+              else:
+                  function_11()
+              if belief_set[’agent’][’energy’] < 50 and belief_set[’agent’][’coordinates’
+                  ] != [3, 2]:
+                  function_2() if belief_set[’agent’][’coordinates’][0] < [3, 2][0
+                      ] else function_1()
+                  function_4() if belief_set[’agent’][’coordinates’][1] < [3, 2][1
+                      ] else function_3()
+                  function_5()
+
+
+
+   • Predetermined function
+
+          def function_23():
+              global belief_set
+              function_1()
+              function_2()
+              function_2()
+              function_5()
+
+
+
+    Table 4.19 shows the number of intentions that fall into the Grounded or Predetermined cate-
+gories for each typology. In total, out of the 293 intentions generated, 21 are either Grounded or
+Predetermined (7.2%).
+
+                                 Typology      Number Intentions
+                                    1                 0
+                                    2                 0
+                                    3                 1
+                                    4                 4
+                                    5                 5
+                                    6                 7
+                                    7                 1
+                                    8                 3
+
+             Table 4.19: Number of Grounded or Predetermined intentions by Typology
+
+    During the manual evaluation, it was noticed that many of these non-adaptive intentions were
+generated towards the end of the experiments. To validate this observation, it is possible to count how
+many of these fall into the last n1 generated intentions during each experiment, and then compare with
+an expected count calculated assuming that the likelihood of generating a Grounded or Predetermined
+intention is constant over the course of the experiment. The result of this analysis is shown in Table
+4.20. In all cases, the expected count is much lower that the count reported in conducted experiments.
+A reason for this could be that, as the experiment progresses, objects get spawned over time and the
+belief set is filled with entries, which means that prompts get longer and more complex to interpret
+for the LLM, leading to worse functions being created.
+
+                                                  44
+                     Value of n     Number of Intentions          Expected Count
+                         2              12/21 - 0.57                    0.5
+                         3              9/21 - 0.43                    0.33
+                         4              9/21 - 0.43                    0.25
+                         5              8/21 - 0.38                     0.2
+                         6              8/21 - 0.38                    0.17
+                         7              8/21 - 0.38                    0.14
+                         8              7/21 - 0.33                    0.13
+
+Table 4.20: Number of Grounded or Predetermined intentions found in the last n1 of generated inten-
+tions, with n increasing from 2 to 8
+
+    By grouping all intentions into the three categories identified above, it is possible to compute the
+metrics for each category and compare the mean values. Results are shown in Table 4.21. Considering
+the confidence intervals, there are no clear differences between the three categories in any of the metrics.
+This means that the quality of intentions, measured by the metrics chosen, cannot be used to recognize
+Grounded intentions from Adaptive ones, highlighting a limitation in the evaluation performed using
+metrics only.
+
+                     Cyclomatic          Maintainability         Logical Lines              Halstead
+   Category
+                     Complexity               Index                 of Code                   Effort
+   Adaptive        9.16 [8.60, 9.71]    58.97 [57.74, 60.20]   19.06 [18.10, 20.02]   372.56 [313.72, 431.41]
+   Grounded        8.65 [6.26, 11.04]   58.08 [53.95, 62.22]   20.12 [14.93, 25.31]   335.00 [161.45, 508.55]
+ Predetermined     2.75 [1.23, 4.27]    72.38 [61.76, 83.00]    9.00 [4.69, 13.31]     17.00 [-26.32, 60.32]
+
+      Table 4.21: Mean and 95% confidence interval of metrics for each category of intentions.
+
+    Another interesting kind of analysis involves taking into consideration the goal description as-
+sociated to each intention. When generated by the LLM, an intention is returned with a textual
+description of its goal, and with the function that should achieve it. One would expect the description
+to reflect in some way the function associated. For each description, two metrics can be calculated:
+the number of text characters contained, or the number of objectives mentioned. The first value is
+simple to obtain, while the second one requires to manually count of how many steps the description
+is composed. For example, the description
+    The agent should strive to collect as many parcels as possible from the parcels spawn point and
+deliver them to their respective destinations while maintaining a high energy level.
+is 180 characters long and can be divided into 3 objectives: collect parcels, deliver parcels, maintain
+high energy level. These two values can be computed for all descriptions and can be used to compute
+the average number of objectives and the average description length for intentions that are Adaptive,
+Grounded, or Predetermined. The mean values and 95% confidence intervals for each category are
+shown in Table 4.22. The difference between the categories is clearly visible between Adaptive and
+Grounded intentions, with the latter having longer descriptions and more objectives. This means that
+the difference in quality between these two categories of intentions is not reflected in the metrics of
+the functions, but can be observed by analysing the descriptions associated to them.
+
+                   Category         Number of Objectives          Description Length
+                   Adaptive            3.14 [2.97, 3.31]          172.99 [164.37, 181.60]
+                   Grounded            4.53 [3.58, 5.48]          226.12 [193.68, 258.56]
+                 Predetermined         4.00 [2.70, 5.30]          207.75 [122.02, 293.48]
+
+Table 4.22: Mean and 95% confidence interval of number of objectives and description length for each
+category of intentions.
+
+    To further highlight the difference, it is possible to only consider intentions that contain no calls
+to other previously generated intentions. Intentions containing calls are probably much shorter and
+
+                                                    45
+less complex than intentions that contain no calls since they are built on top of working functions,
+and for this reason do not reflect the length of their description. By removing these intentions, we
+obtain a reduced pool of 224 intentions from the initial 293. With this new set of functions we can
+compute the average Radon metrics, average number of objectives, and average description length, for
+Adaptive, Grounded, and Predetermined intentions. The results are shown in Tables 4.23, 4.24, 4.25,
+and 4.26; the metrics already explained above are also reported for comparison. The same conclusion
+can be drawn: the metrics computed on Adaptive and Grounded intentions show similar values, while
+the difference between the average number of objectives and the average description length is even
+more pronounced when considering only the reduced pool of intentions.
+
+                                              Cyclomatic Complexity
+                                                All             Reduced
+                            Adaptive     9.16 [8.60, 9.71] 10.03 [9.42, 10.63]
+                           Grounded      8.65 [6.26, 11.04] 10.08 [7.11, 13.06]
+                       Predetermined     2.75 [1.23, 4.27]   4.00 [nan, nan]
+
+Table 4.23: Comparison of Cyclomatic Complexity between Adaptive, Grounded and Predetermined
+intentions, when considering all intentions (All) and when considering the reduced pool of intentions
+without calls to other functions (Reduced). The mean value and the 95% confidence interval are
+shown.
+
+
+                                               Maintainability Index
+                                               All              Reduced
+                           Adaptive    58.97 [57.74, 60.20] 56.17 [55.40, 56.94]
+                          Grounded     58.08 [53.95, 62.22] 55.16 [50.73, 59.60]
+                      Predetermined    72.38 [61.76, 83.00]  63.15 [nan, nan]
+
+Table 4.24: Comparison of Maintainability Index between Adaptive, Grounded and Predetermined
+intentions, when considering all intentions (All) and when considering the reduced pool of intentions
+without calls to other functions (Reduced). The mean value and the 95% confidence interval are
+shown.
+
+
+                                               Logical Lines of Code
+                                               All              Reduced
+                           Adaptive    19.06 [18.10, 20.02] 20.66 [19.66, 21.66]
+                          Grounded     20.12 [14.93, 25.31] 23.25 [16.86, 29.64]
+                      Predetermined     9.00 [4.69, 13.31]   13.00 [nan, nan]
+
+Table 4.25: Comparison of Logical Lines of Code between Adaptive, Grounded and Predetermined
+intentions, when considering all intentions (All) and when considering the reduced pool of intentions
+without calls to other functions (Reduced). The mean value and the 95% confidence interval are
+shown.
+
+
+                                                   Halstead Effort
+                                              All                 Reduced
+                       Adaptive     372.56 [313.72, 431.41] 426.49 [354.37, 498.61]
+                      Grounded      335.00 [161.45, 508.55] 432.94 [207.15, 658.73]
+                  Predetermined      17.00 [-26.32, 60.32]     57.66 [nan, nan]
+
+Table 4.26: Comparison of Halstead Effort between Adaptive, Grounded and Predetermined inten-
+tions, when considering all intentions (All) and when considering the reduced pool of intentions without
+calls to other functions (Reduced). The mean value and the 95% confidence interval are shown.
+
+                                                  46
+                                                Number of Objectives
+                                                   All           Reduced
+                               Adaptive     3.14 [2.97, 3.31] 2.93 [2.75, 3.12]
+                              Grounded      4.53 [3.58, 5.48] 4.83 [3.60, 6.07]
+                          Predetermined     4.00 [2.70, 5.30] 3.00 [nan, nan]
+
+Table 4.27: Comparison of Number of Objectives between Adaptive, Grounded and Predetermined
+intentions, when considering all intentions (All) and when considering the reduced pool of intentions
+without calls to other functions (Reduced). The mean value and the 95% confidence interval are
+shown.
+
+
+                                                  Description Length
+                                               All                 Reduced
+                        Adaptive     172.99 [164.37, 181.60] 160.75 [151.75, 169.76]
+                       Grounded      226.12 [193.68, 258.56] 240.92 [202.65, 279.18]
+                   Predetermined     207.75 [122.02, 293.48]   172.00 [nan, nan]
+
+Table 4.28: Comparison of Description Length between Adaptive, Grounded and Predetermined in-
+tentions, when considering all intentions (All) and when considering the reduced pool of intentions
+without calls to other functions (Reduced). The mean value and the 95% confidence interval are
+shown.
+
+Metrics of Intentions Grouped by Description Length or by Number of Objectives
+Intentions that have longer descriptions, both in terms of number of characters and number of objec-
+tives, are expected to be associated with functions that are also longer and more complex. To test this,
+it is possible to group intentions based on the number of objectives mentioned in their description, or
+based on the length of the description, and plot the average metrics for each group. The same can
+be done only considering intentions that do not contain calls to other functions. Figures 4.13, 4.14,
+4.15, 4.16, 4.17, 4.18, 4.19, and 4.20 show the average metrics for intentions grouped by number of
+objectives of their description, first considering all intentions, and then considering only intentions
+without calls. The same analysis is performed grouping intentions by description lengths, with results
+shown in Figures 4.21, 4.22, 4.23, 4.24, 4.25, 4.26, 4.27, and 4.28. For some values the confidence
+interval is not shown because too big to be displayed or not computable. The binning employed in the
+graphs showing metrics by description length aims at having a similar number of intentions in each
+bin, reason why the bins are not of equal size.
+     When grouped by number of objectives, metrics clearly show that, as descriptions get longer,
+their associated functions worsen in complexity and maintainability. This trend is even clearer when
+considering only intentions without calls, with values that highlight even higher complexity and lower
+maintainability when compared to the metrics computed on all intentions.
+     If all intentions are grouped by description length, the metrics show a similar but less clear trend.
+However, it is still possible to conclude that intentions associated to the shortest descriptions are less
+complex than the rest, and that their maintainability is higher. Since the number of intentions is
+reduced when considering only intentions without calls, only six bins are employed in this case, but
+with each bin containing a very similar number of intentions to before. The trend is a lot clearer in
+this case with also less variability in the metrics.
+     Overall, it is possible to conclude that the description associated to a function is a more telling
+indicator of complexity than the function itself. Some conclusions can be drawn from these results:
+Given an intention, it is not possible to predict if it will be Adaptive, Grounded or Predetermined
+by only looking at the metrics computed with Radon on its associated function. If it belongs to the
+Grounded category, it will have on average a longer and more complex description that an Adaptive
+intention. Intentions that have a shorter and less complex description are more likely to be associated
+with functions that are also less complex and more maintainable. However, this last statement is
+applicable mostly to intentions that do not contain calls to other functions.
+
+                                                   47
+Figure 4.13: Cyclomatic Complexity of intentions grouped by number of objectives of their description
+
+
+
+
+Figure 4.14: Cyclomatic Complexity of intentions without calls grouped by number of objectives of
+their description
+
+                                                 48
+   Figure 4.15: Halstead Effort of intentions grouped by number of objectives of their description
+
+
+
+
+Figure 4.16: Halstead Effort of intentions without calls grouped by number of objectives of their
+description
+
+                                                 49
+Figure 4.17: Logical Lines of Code of intentions grouped by number of objectives of their description
+
+
+
+
+Figure 4.18: Logical Lines of Code of intentions without calls grouped by number of objectives of their
+description
+
+                                                  50
+Figure 4.19: Maintainability Index of intentions grouped by number of objectives of their description
+
+
+
+
+Figure 4.20: Maintainability Index of intentions without calls grouped by number of objectives of their
+description
+
+                                                  51
+      Figure 4.21: Cyclomatic Complexity of intentions grouped by description length
+
+
+
+
+Figure 4.22: Cyclomatic Complexity of intentions without calls grouped by description length
+
+                                            52
+      Figure 4.23: Halstead Effort of intentions grouped by description length
+
+
+
+
+Figure 4.24: Halstead Effort of intentions without calls grouped by description length
+
+                                         53
+      Figure 4.25: Logical Lines of Code of intentions grouped by description length
+
+
+
+
+Figure 4.26: Logical Lines of Code of intentions without calls grouped by description length
+
+                                            54
+           Figure 4.27: Maintainability Index of intentions grouped by description length
+
+
+
+
+    Figure 4.28: Maintainability Index of intentions without calls grouped by description length
+
+4.3.5   Analysis of Intentions With Calls
+An intention with calls is an intention whose function contains at least one call to another intention’s
+function that was generated correctly in previous iterations. The number of intentions with calls is 69
+out of the total 293. A function that contains calls is expected to be shorter, simpler, and is expected
+to have a much lower failure rate due to the use of functions that were verified to work correctly.
+However, Table 4.29 shows that intentions with calls are generated correctly less often than intentions
+without calls. This is opposite of what was expected. One reason for this might be that the function
+included as a call does not produce the expected result without causing a runtime error, thus not
+leading to achievement of the newly generated intention. If this is the case, then it would be expected
+
+                                                  55
+that intentions with calls fail more often due to a negative evaluation rather than due to an execution
+error. So, considering the intentions that did not generate correctly, we can look at the reason for
+the failure, as shown in Table 4.30. As we can observe, intentions with calls fail because of a negative
+evaluation more often that intentions without calls, not disproving the hypothesis proposed above.
+
+                                       Generated Correctly        Not Generated Correctly
+         Intentions with Calls                0.159                        0.841
+       Intentions without Calls               0.290                        0.710
+
+Table 4.29: Fraction of intentions that were generated correctly or not generated correctly, for inten-
+tions with and without calls
+
+
+                                            Execution Error       Negative Evaluation
+               Intentions with Calls             0.293                   0.707
+             Intentions without Calls            0.472                   0.528
+
+     Table 4.30: Reason for failure in the generation phase for intentions with and without calls
+
+   Finally, we can look at how many lines of code a function containing calls has, compared to a
+function that does not contain calls. The results are shown in Table 4.31. Intentions with calls are,
+on average, much shorter.
+
+                                                           Lines of Code
+                            Intentions with Calls        13.22 [11.38 - 15.06]
+                          Intentions without Calls       20.76 [19.77 - 21.75]
+
+Table 4.31: Mean and 95% confidence interval of lines of code for intentions with and without calls
+
+
+
+
+                                                  56
+5        Conclusion
+The agent architecture developed has the capabilities of acting autonomously in a dynamic environ-
+ment, achieving the self-proposed goals. However, it mostly remains dependent on the LLM to plan
+its actions. Its ability to learn how to operate in a fully autonomous way is limited, as shown in
+the analysis of the results obtained from the experiments conducted. Nevertheless, this represents a
+small but significant step towards automating software development processes, which could improve
+scalability and efficiency.
+
+   The next sections describe the issues observed in the experiments conducted and propose im-
+provements that might mitigate or solve them, helping to achieve a more effective software evolution
+process.
+
+Memory and Context Awareness
+
+When a new requirement is proposed, the agent leverages the LLM to generate functions that, when
+executed, should produce the necessary plans to achieve them. Most of the code was able to run
+without errors, but sometimes entering infinite loops caused by while statements with conditions that
+could never be met. This issue was solved with the introduction of a limit of 15 seconds for the
+execution of code, after which an execution error was triggered. This particular problem was caused
+by how the information in the belief set was accessed, causing the exit conditions to not read the
+correct values. Normally, a human developer would notice this error, infer the cause, come up with a
+solution, and adjust the future developed functions to not encounter this problem again. However, this
+is really not an easy task when prompting an LLM that has no context on what happened in the past.
+A partial fix, which is provided by the Memory component of the architecture, was to introduce an
+additional step in which the LLM, given the function and the error that occured, proposes suggestions
+on how to solve the prolem. This information is saved and then included in the next prompt to
+condition the function generation that should not run into the same problem. After that, the memory
+is erased since the suggestions are relevant only for the current state of the environment and for the
+current pursued goals. Having the LLM infer and recognize that the problem will persist and that
+adjustments will have to be continuosly made is incredibly arduous. Understanding how to fix an
+error like this, and being able to abstract and infer the reason why it happened, making it not specific
+for the function that encountered the error, is simple for humans that are aware of the context of the
+software system, but is just not possible for an LLM. To give the same ability to an LLM, a framework
+would require many complex prompts to obtain feedback that is then implemented and evaluated, in
+a constant loop that needs to check whether what it is doing is actually correct. And even in that
+case, there is no guarantee that the process will converge to a correct solution. In other words, the
+need to subdivide a task into many smaller problems to solve independently, making them digestable
+to LLMs, arises due to technical limitations of these models that, this way, become unaware of the
+bigger picture. Awareness of what happened in previous iterations, and the ability to infer knowledge
+applicable to future generations is the key to solve this problem.
+
+Language Specific Issues
+
+As explained in the previous section, the LLM had trouble generating functions in which the belief set
+is accessed correctly. In fact, this was the source of many problems, and its resolution was not possible
+even after fine-tuning the prompts in an attempt of influencing the LLM. For context, the belief set is
+a Python dictionary that is updated by the perception unit of the architecture. The structure is then
+given as example in the prompts to allow the LLM to use the correct keys to access the dictionary
+
+                                                   57
+and obtain the desired information. Problems arise when the LLM decides to copy the content of the
+belief set into locally defined variables, and then use those variables to perform checks on the state of
+the environment. In Python, this operation creates a copy of the values contained in the belief set that
+are not updated when the environment changes. This issue remarks some limitations in the technical
+expertise of the LLM itself, and might be solvable by adopting another programming language, or by
+making different implementation choices in which this problem cannot happen.
+
+
+Limitations of Pathfinding Solutions Implemented
+
+To achieve the objectives set in the experiments, the agent needs to navigate the map to interact with
+the objects that are present. However, a problem arose due to how the movement on the map was
+achieved, and it could not be resolved. In all experiments, the LLM only implemented a very basic
+pathfinding algorithm: if a cell was blocked by an obstacle that required the agent to move around
+it, then that cell was effectively unreachable. This problem could not be solved since more precise
+instructions on how to move on the map would make the architecture work with only the specific
+environment employed. And even in that case, the LLM might still not be capable enough of building
+more complex solutions to handle sophisticated pathfinding.
+
+
+Feedback Between Perception and Control Units
+
+The agent consists of two units: perception and control. The first one is responsible for handling
+incoming events and integrating the information carried into the beliefs set. The second one is re-
+sponsible for generating goals and producing the appropriate plans to achieve them. In the current
+implementation these two units do not interact since they have different tasks and are independent of
+each other. However, an improvement that might benefit the agent consists in adding a component
+that enables the interaction between the units. As of now, the control unit utilizes the information
+that is saved by the perception unit but has no say in how the information should be saved; for ex-
+ample, structuring differently the belief set in a way that better fits the environment could improve
+efficiency and performance. This component, that would act as internal feedback, could help improve
+the agent’s internal representation, but not without complexity coming from the required additional
+prompts and steps to make this process function correctly.
+
+
+Learning of Environment-Specific Information
+
+The environment in which the agent was tested is very simple and straightforward, with elements that
+do not need an explanation to know how they can be interacted with. For example, if us humans are
+presented with two objects, a key and a door, and we are only perfmitted to perform a handful of
+actions like pick-up and put-down, the objective is clear to us: get the key and leave it at the door.
+This is also true for the LLM. If, instead, the environment were more complex, containing objects
+whose functions are not immediately obvious, the agent would not be able to rely on trial and error
+to learn how to interact with them, since this is not implemented in the architecture. As explained
+before, the memory component has the limited use of providing feedback to fix the code generated
+between one iteration and the following, but is erased right after it is used. This implementation does
+not correspond to how it was imagined originally: the initial idea was to have a permanent memory
+updated by the LLM with the information that it deemed relevant about effects of its actions, details
+of interactions, and general mechanics of the game. However, this failed due to the inability of the
+LLM to recognize what information was valid only in the current state of the environment, and what
+instead were general mechanics of the game. A partial cause of this problem can be identified in the
+limitations of prompts made: when requested to come up with this general information about the
+environment, the LLM is given only a snapshot with the current state that, by definition, cannot
+capture temporal information. This aspect is further discussed in the next section.
+
+                                                   58
+Lack of Temporal Dimensionality
+Let’s say, for example, that parcels spawn at set intervals of 10 seconds. How can the agent learn this
+information? In the proposed architecture this is simply not possible. A fix for this issue could be to
+prompt with a time series describing all changes that happen, but this solution would probably exceed
+the context window limitation of current LLMs with big enough environments, and optimizations to
+the input information would be heavily dependent on the nature of the environment.
+
+Assumption About Agent’s Actions
+An important assumption made is about the actions that the agent can perform in the environment
+it operates in. The user needs to specify what effect each action has to allow the LLM to correctly
+generate plans. However, this might not be always possible. Environments that are unknown both to
+humans and to the agent, where it is not possible to know in advance the result of executing an action,
+would require an additional component in which the LLM keeps keeps track of this information. But,
+as discussed before, this introduces complexity and is not trivial to implement correctly. In fact, an
+attempt was made to try and let the LLM figure out what the effects of the available actions were, but
+it failed because of the inability of the LLM to recognize and generalize them so that the information
+could be used in future code generations.
+
+
+    While the agent shows potential for evolution and adaptability, it is not able of the desired scala-
+bility and robustness. Improving context-awareness and overcoming the technical limitations is fun-
+damental to the creation of an agent capable of operating autonomously in complex and dynamic
+environments. Improvements should involve the integration of components and mechanisms that help
+the LLM generalize better from the given information and understand the temporal properties of
+the environment. Future work must focus on these aspects to bridge the gap between LLM-based
+architectures and fully autonomous agents.
+
+
+
+
+                                                  59
+Bibliography
+
+ [1] Welcome to radon’s documentation! https://radon.readthedocs.io/en/latest/. Radon 4.1.0 doc-
+     umentation.
+ [2] Lenz Belzner, Thomas Gabor, and Martin Wirsing. Large language model assisted software
+     engineering: prospects, challenges, and a case study. In International Conference on Bridging the
+     Gap between AI and Reality, pages 355–374. Springer, 2023.
+ [3] Michael Bratman. Intention, Plans, and Practical Reason. Cambridge, MA: Harvard University
+     Press, Cambridge, 1987.
+ [4] Michael E Bratman, David J Israel, and Martha E Pollack. Plans and resource-bounded practical
+     reasoning. Computational intelligence, 4(3):349–355, 1988.
+ [5] Tom B. Brown, Benjamin Mann, Nick Ryder, Melanie Subbiah, Jared Kaplan, Prafulla Dhari-
+     wal, Arvind Neelakantan, Pranav Shyam, Girish Sastry, Amanda Askell, Sandhini Agarwal,
+     Ariel Herbert-Voss, Gretchen Krueger, Tom Henighan, Rewon Child, Aditya Ramesh, Daniel M.
+     Ziegler, Jeffrey Wu, Clemens Winter, Christopher Hesse, Mark Chen, Eric Sigler, Mateusz Litwin,
+     Scott Gray, Benjamin Chess, Jack Clark, Christopher Berner, Sam McCandlish, Alec Radford,
+     Ilya Sutskever, and Dario Amodei. Language models are few-shot learners, 2020.
+ [6] Jim Buckley, Tom Mens, Matthias Zenger, Awais Rashid, and Günter Kniesel. Towards a taxon-
+     omy of software change. Journal of Software Maintenance and Evolution: Research and Practice,
+     17(5):309–332, 2005.
+ [7] Ned Chapin, Joanne E Hale, Khaled Md Khan, Juan F Ramil, and Wui-Gee Tan. Types of
+     software evolution and software maintenance. Journal of software maintenance and evolution:
+     Research and Practice, 13(1):3–30, 2001.
+ [8] Mark Chen, Jerry Tworek, Heewoo Jun, Qiming Yuan, Henrique Ponde De Oliveira Pinto, Jared
+     Kaplan, Harri Edwards, Yuri Burda, Nicholas Joseph, Greg Brockman, et al. Evaluating large
+     language models trained on code. arXiv preprint arXiv:2107.03374, 2021.
+ [9] Cédric Colas, Laetitia Teodorescu, Pierre-Yves Oudeyer, Xingdi Yuan, and Marc-Alexandre Côté.
+     Augmenting autotelic agents with large language models. In Conference on Lifelong Learning
+     Agents, pages 205–226. PMLR, 2023.
+[10] Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova. Bert: Pre-training of deep
+     bidirectional transformers for language understanding, 2019.
+[11] Thomas Dohmke.            Github copilot is generally available to all developers.
+     https://github.blog/news-insights/product-news/github-copilot-is-generally-available-to-all-
+     developers/, June 2022. Updated on May 21, 2024.
+[12] Stan Franklin and Art Graesser. Is it an agent, or just a program?: A taxonomy for autonomous
+     agents. In International workshop on agent theories, architectures, and languages, pages 21–35.
+     Springer, 1996.
+[13] Erik Hemberg, Stephen Moskal, and Una-May O’Reilly. Evolving code with a large language
+     model. Genetic Programming and Evolvable Machines, 25(2):21, 2024.
+
+                                                 60
+[14] Carl Hewitt. Viewing control structures as patterns of passing messages. Artificial intelligence,
+     8(3):323–364, 1977.
+
+[15] S Hochreiter. Long short-term memory. Neural Computation MIT-Press, 1997.
+
+[16] Wenlong Huang, Pieter Abbeel, Deepak Pathak, and Igor Mordatch. Language models as zero-
+     shot planners: Extracting actionable knowledge for embodied agents. In International conference
+     on machine learning, pages 9118–9147. PMLR, 2022.
+
+[17] Yuan Huang, Yinan Chen, Xiangping Chen, Junqi Chen, Rui Peng, Zhicao Tang, Jinbo Huang,
+     Furen Xu, and Zibin Zheng. Generative software engineering. arXiv preprint arXiv:2403.02583,
+     2024.
+
+[18] David Kinny, Michael Georgeff, and Anand Rao. A methodology and modelling technique for
+     systems of bdi agents. In European workshop on modelling autonomous agents in a multi-agent
+     world, pages 56–71. Springer, 1996.
+
+[19] Manny M Lehman. Laws of software evolution revisited. In European workshop on software
+     process technology, pages 108–124. Springer, 1996.
+
+[20] Meir M Lehman. Programs, cities, students—limits to growth? In Programming Methodology: A
+     Collection of Articles by Members of IFIP WG2. 3, pages 42–69. Springer, 1978.
+
+[21] Meir M Lehman. Programs, life cycles, and laws of software evolution. Proceedings of the IEEE,
+     68(9):1060–1076, 1980.
+
+[22] Bo Liu, Yuqian Jiang, Xiaohan Zhang, Qiang Liu, Shiqi Zhang, Joydeep Biswas, and Peter Stone.
+     Llm+ p: Empowering large language models with optimal planning proficiency. arXiv preprint
+     arXiv:2304.11477, 2023.
+
+[23] Vadim Liventsev, Anastasiia Grishina, Aki Härmä, and Leon Moonen. Fully autonomous pro-
+     gramming with large language models. In Proceedings of the Genetic and Evolutionary Compu-
+     tation Conference, pages 1146–1155, 2023.
+
+[24] Hyacinth S Nwana. Software agents: An overview. The knowledge engineering review, 11(3):205–
+     244, 1996.
+
+[25] OpenAI. Introducing chatgpt. https://openai.com/index/chatgpt/, November 2022. Accessed on
+     November 18, 2024.
+
+[26] Alec Radford and Karthik Narasimhan. Improving language understanding by generative pre-
+     training. 2018.
+
+[27] Anand S. Rao and Michael P. Georgeff. Modeling rational agents within a bdi-architecture. In
+     Proceedings of the Second International Conference on Principles of Knowledge Representation
+     and Reasoning, KR’91, page 473–484, San Francisco, CA, USA, 1991. Morgan Kaufmann Pub-
+     lishers Inc.
+
+[28] Anand S Rao and Michael P Georgeff. Bdi agents: from theory to practice. In Icmas, volume 95,
+     pages 312–319, 1995.
+
+[29] David E Rumelhart, Geoffrey E Hinton, and Ronald J Williams. Learning internal representa-
+     tions by error propagation, parallel distributed processing, explorations in the microstructure of
+     cognition, ed. de rumelhart and j. mcclelland. vol. 1. 1986. Biometrika, 71(599-607):6, 1986.
+
+[30] Mike Schuster and Kuldip K Paliwal. Bidirectional recurrent neural networks. IEEE transactions
+     on Signal Processing, 45(11):2673–2681, 1997.
+
+[31] Yoav Shoham. Agent-oriented programming. Artificial intelligence, 60(1):51–92, 1993.
+
+                                                  61
+[32] Gemini Team, Rohan Anil, Sebastian Borgeaud, Jean-Baptiste Alayrac, Jiahui Yu, Radu Soricut,
+     Johan Schalkwyk, Andrew M Dai, Anja Hauth, Katie Millican, et al. Gemini: a family of highly
+     capable multimodal models. arXiv preprint arXiv:2312.11805, 2023.
+
+[33] Camilo Thorne. The bdi model of agency and bdi logics. Technical report, Technical report.
+     Trento, Italy: Laboratory for Applied Ontology. Available . . . , 2005.
+
+[34] Hugo Touvron, Thibaut Lavril, Gautier Izacard, Xavier Martinet, Marie-Anne Lachaux, Timothée
+     Lacroix, Baptiste Rozière, Naman Goyal, Eric Hambro, Faisal Azhar, et al. Llama: Open and
+     efficient foundation language models. arXiv preprint arXiv:2302.13971, 2023.
+
+[35] Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez,
+     Lukasz Kaiser, and Illia Polosukhin. Attention is all you need, 2023.
+
+[36] Jason Wei, Xuezhi Wang, Dale Schuurmans, Maarten Bosma, Fei Xia, Ed Chi, Quoc V Le, Denny
+     Zhou, et al. Chain-of-thought prompting elicits reasoning in large language models. Advances in
+     neural information processing systems, 35:24824–24837, 2022.
+
+[37] Michael Wooldridge and Nicholas R Jennings. Intelligent agents: Theory and practice. The
+     knowledge engineering review, 10(2):115–152, 1995.
+
+
+
+
+                                                62
+

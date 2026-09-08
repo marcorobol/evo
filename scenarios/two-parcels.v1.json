@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "name": "two-parcels",
+  "description": "Two parcels can be collected together and delivered on the starting tile.",
+  "agent": { "id": "agent", "name": "curriculum-agent", "x": 0, "y": 0, "score": 0 },
+  "tiles": [
+    { "x": 0, "y": 0, "type": "2" },
+    { "x": 1, "y": 0, "type": "1" }
+  ],
+  "parcels": [
+    { "id": "parcel-1", "x": 1, "y": 0, "reward": 5 },
+    { "id": "parcel-2", "x": 1, "y": 0, "reward": 8 }
+  ]
+}
