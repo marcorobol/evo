@@ -3,12 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "bin": {
+    "evo": "./bin/evo"
+  },
   "engines": {
     "node": ">=22"
   },
   "scripts": {
     "build": "tsc --noEmit",
-    "test": "node --import tsx --test test/baseline-policy.test.ts && node --import tsx --test test/capability-library.test.ts && node --import tsx --test test/capability-proposer.test.ts && node --import tsx --test test/capability-validator.test.ts && node --import tsx --test test/code-capability.test.ts && node --import tsx --test test/generic-capability.test.ts && node --import tsx --test test/model-provider.test.ts && node --import tsx --test test/scenario-loader.test.ts && node --import tsx --test test/turn-based-environment.test.ts",
+    "cli": "bun run src/evo-cli.ts",
+    "test": "node --import tsx --test test/baseline-policy.test.ts && node --import tsx --test test/capability-library.test.ts && node --import tsx --test test/capability-proposer.test.ts && node --import tsx --test test/capability-validator.test.ts && node --import tsx --test test/code-capability.test.ts && node --import tsx --test test/generic-capability.test.ts && node --import tsx --test test/generic-code-capability.test.ts && node --import tsx --test test/model-provider.test.ts && node --import tsx --test test/scenario-loader.test.ts && node --import tsx --test test/turn-based-environment.test.ts",
     "start": "node --import tsx src/local-demo.ts",
     "start:deliveroo": "node --import tsx src/index.ts",
     "generate:capability": "node --import tsx src/generate-capability.ts",
@@ -21,6 +25,9 @@
     "evolve:generic-curriculum": "node --import tsx src/evolve-generic-curriculum.ts",
     "evolve:generic:opencode": "bun run src/evolve-generic-opencode.ts",
     "explore:generic:opencode": "bun run src/explore-generic-opencode.ts",
+    "explore:live:opencode": "bun run src/explore-live-deliveroo-opencode.ts",
+    "play:live:evolving": "bun run src/play-live-evolving.ts",
+    "synthesize:generic:opencode": "bun run src/run-generic-exploration.ts",
     "evaluate:generic:opencode": "bun run src/evaluate-generic-reuse-opencode.ts",
     "discover:game:opencode": "bun run src/discover-game-opencode.ts",
     "probe:opencode": "bun run src/opencode-sdk-probe.ts",

@@ -11,6 +11,17 @@ export const genericCapabilitySchema = z.object({
 
 export type GenericCapability = z.infer<typeof genericCapabilitySchema>;
 
+/** Accept the legacy name `plan` as a harmless transport alias for `actions`. */
+export function parseGenericCapability(value: unknown): GenericCapability {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    const proposal = value as Record<string, unknown>;
+    if (proposal.actions === undefined && Array.isArray(proposal.plan)) {
+      return genericCapabilitySchema.parse({ ...proposal, actions: proposal.plan });
+    }
+  }
+  return genericCapabilitySchema.parse(value);
+}
+
 export interface GenericValidation {
   accepted: boolean;
   scoreDelta: number;
