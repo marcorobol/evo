@@ -67,12 +67,13 @@ function safe(value: string): string { return value.toLowerCase().replace(/[^a-z
 function representation(value: unknown): { id: string; module: string; tokens: Set<string> } | undefined {
   if (typeof value !== "object" || value === null) return undefined;
   const item = value as { id?: unknown; module?: unknown; files?: unknown; source?: unknown };
-  if (typeof item.id !== "string" || typeof item.module !== "string") return undefined;
+  if (typeof item.id !== "string") return undefined;
+  const module = typeof item.module === "string" ? item.module : item.id;
   const content = Array.isArray(item.files)
     ? item.files.map((file) => typeof file === "object" && file !== null && typeof (file as { content?: unknown }).content === "string" ? (file as { content: string }).content : "").join("\n")
     : typeof item.source === "string" ? item.source : "";
   if (!content) return undefined;
-  return { id: item.id, module: item.module, tokens: new Set(content.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, " ").match(/[A-Za-z_$][\w$]*|\d+|=>|===|!==|==|!=|[{}()[\].,;:+*/<>-]/g) ?? []) };
+  return { id: item.id, module, tokens: new Set(content.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, " ").match(/[A-Za-z_$][\w$]*|\d+|=>|===|!==|==|!=|[{}()[\].,;:+*/<>-]/g) ?? []) };
 }
 
 function similarity(left: ReadonlySet<string>, right: ReadonlySet<string>): number {

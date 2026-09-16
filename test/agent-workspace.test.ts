@@ -6,6 +6,7 @@ import { diagnose } from "../src/agent-workspace/diagnostics.js";
 import { createEvolvingAgent } from "../src/agent-workspace/evolving-agent.js";
 import { findPath } from "../src/agent-workspace/navigation.js";
 import { HeatmapMemory } from "../src/agent-workspace/memory.js";
+import { capabilityArtifactSchema } from "../src/agent-workspace/capability-artifact.js";
 import type { Tile } from "../src/domain.js";
 import { loadScenario } from "../src/scenario-loader.js";
 import { fileURLToPath } from "node:url";
@@ -66,4 +67,29 @@ test("episodic memory records whether a proposed move was accepted", () => {
   memory.record({ tiles: new Map(), parcels: new Map(), me: { id: "a", name: "a", x: 0, y: 0, score: 0 }, observedAt: 0 }, { action: { kind: "move", direction: "right" }, confidence: 1, rationale: "test", module: "test" });
   memory.recordOutcome(false);
   assert.equal(memory.snapshot()[0]?.accepted, false);
+});
+
+test("registered capability is invoked and its decision activation is measurable", () => {
+  const agent = createEvolvingAgent({ capabilities: [{
+    descriptor: { id: "co-located-pickup", version: 1, purpose: "Test capability." }, priority: 1,
+    decide: (context) => context.observation.parcels.some((parcel) => parcel.x === context.observation.me?.x && parcel.y === context.observation.me?.y)
+      ? { action: { kind: "pickup" }, confidence: 1, rationale: "capability activation", module: "co-located-pickup" }
+      : undefined,
+  }] });
+  agent.nextAction({ tiles: new Map(), parcels: new Map([["p", { id: "p", x: 0, y: 0, reward: 1 }]]), me: { id: "a", name: "a", x: 0, y: 0, score: 0 }, observedAt: 0 });
+  assert.deepEqual(agent.capabilityStats(), [{ id: "co-located-pickup", invocations: 1, decisions: 1 }]);
+});
+
+test("a self-contained capability artifact is attached without core edits", () => {
+  const agent = createEvolvingAgent({ artifacts: [{ id: "artifact-pickup", purpose: "Pick up co-located work.", activation: { hook: "decision", priority: 1 }, source: "(context) => { const me = context.observation.me; return context.observation.parcels.some((p) => me && p.x === me.x && p.y === me.y) ? { action: { kind: 'pickup' }, confidence: 1, rationale: 'artifact' } : undefined; }" }] });
+  const result = agent.nextAction({ tiles: new Map(), parcels: new Map([["p", { id: "p", x: 0, y: 0, reward: 1 }]]), me: { id: "a", name: "a", x: 0, y: 0, score: 0 }, observedAt: 0 });
+  assert.equal(result.module, "candidate:artifact-pickup");
+  assert.deepEqual(agent.capabilityStats(), [{ id: "artifact-pickup", invocations: 1, decisions: 1 }]);
+});
+
+test("capability artifact contract rejects pseudo-code and unstructured actions", () => {
+  const base = { id: "strict-artifact", purpose: "test", activation: { hook: "decision" as const, priority: 0 }, source: "(context) => { return { action: { kind: 'pickup' }, confidence: 1, rationale: 'ok' }; }" };
+  assert.doesNotThrow(() => capabilityArtifactSchema.parse(base));
+  assert.throws(() => capabilityArtifactSchema.parse({ ...base, source: "(context) => { return getBestAction(context); } function getBestAction() {}" }));
+  assert.throws(() => capabilityArtifactSchema.parse({ ...base, source: "(context) => { return { action: 'pickup' }; }" }));
 });

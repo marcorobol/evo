@@ -1,8 +1,10 @@
 import type { BeliefState, Position } from "../domain.js";
-import type { AgentCapability, EvolvableAgent, ModuleDecision, PolicyContext, PolicyExtension } from "./contracts.js";
+import type { EvolvableAgent, ModuleDecision, PolicyContext, PolicyExtension } from "./contracts.js";
 import { HeatmapMemory } from "./memory.js";
 import { findPath } from "./navigation.js";
 import { selectParcel } from "./task-selection.js";
+import { CapabilityRegistry, type DecisionCapability, policyCapability } from "./capability-registry.js";
+import { compileCapabilityArtifact, type CapabilityArtifact } from "./capability-artifact.js";
 
 /**
  * The substrate deliberately exposes no named cognitive modules. It supplies
@@ -16,21 +18,25 @@ export interface EvolvingAgentOptions {
   /** Ordered discovered capabilities; the first applicable layer wins. */
   extensions?: ReadonlyArray<PolicyExtension>;
   extensionModules?: ReadonlyArray<string>;
+  capabilities?: ReadonlyArray<DecisionCapability>;
+  artifacts?: ReadonlyArray<CapabilityArtifact>;
 }
 
 export function createEvolvingAgent(options: EvolvingAgentOptions = {}): EvolvableAgent {
   let memory = new HeatmapMemory();
   const extensions = options.extensions ?? (options.extension ? [options.extension] : []);
   const extensionModules = options.extensionModules ?? (options.extensionModule ? [options.extensionModule] : []);
+  const registry = new CapabilityRegistry(options.capabilities ?? (options.artifacts ? options.artifacts.map(compileCapabilityArtifact) : extensions.map((extension, index) => policyCapability(extensionModules[index] ?? `capability-${index + 1}`, extension))));
   return {
-    capabilities: extensionModules.map((id): AgentCapability => ({ id, version: 1, purpose: "Discovered executable capability under evaluation or promotion." })),
-    reset() { memory = new HeatmapMemory(); },
+    capabilities: registry.descriptors(),
+    reset() { memory = new HeatmapMemory(); registry.reset(); },
     memory() { return memory; },
+    capabilityStats() { return registry.stats(); },
     recordOutcome(accepted) { memory.recordOutcome(accepted); },
     nextAction(state) {
       const baseline = decide(state);
       const context = policyContext(state, baseline, memory.snapshot());
-      const candidate = extensions.map((extension) => extension(context)).find((result) => result !== undefined);
+      const candidate = registry.decide(context);
       const decision = candidate ?? baseline;
       memory.record(state, decision);
       return decision;

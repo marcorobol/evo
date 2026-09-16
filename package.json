@@ -37,6 +37,7 @@
     "evaluate:module-patch": "bun run src/evaluate-module-patch.ts",
     "evolve:workspace:opencode": "bun run src/evolve-workspace-opencode.ts",
     "evolve:module-workspace": "bun run src/evolve-module-workspace.ts",
+    "evolve:artifact": "bun run src/generate-capability-artifact.ts",
     "archive:capabilities": "bun run src/backfill-capability-archive.ts",
     "discover:challenge:opencode": "bun run src/discover-challenge-opencode.ts",
     "promote:workspace-candidate": "bun run src/promote-workspace-candidate.ts",

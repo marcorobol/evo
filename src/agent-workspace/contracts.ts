@@ -27,6 +27,7 @@ export interface EvolvableAgent {
   nextAction(state: BeliefState): ModuleDecision;
   recordOutcome(accepted: boolean): void;
   memory(): AgentMemory;
+  capabilityStats(): ReadonlyArray<{ id: string; invocations: number; decisions: number }>;
 }
 
 /** Read-only serializable input supplied to generated policy code. */
@@ -59,6 +60,7 @@ export interface BenchmarkEpisode {
   blockedReasons: string[];
   waits: number;
   decisions: ModuleDecision[];
+  capabilityActivations?: ReadonlyArray<{ id: string; invocations: number; decisions: number }>;
 }
 
 export interface Bottleneck {

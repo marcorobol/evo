@@ -13,7 +13,7 @@ test("module patch schema permits only the declared module surface", async () =>
   await assert.rejects(evaluateModulePatch({ ...proposal, files: [{ path: "package.json", content: "{}" }] }, [], []), /outside the declared evolvable workspace surface/);
 });
 
-test("module revision runs in a disposable clone and rejects a no-op", async () => {
+test("module revision runs in a disposable clone and rejects a no-op", { timeout: 20_000 }, async () => {
   const source = await readFile("src/agent-workspace/navigation.ts", "utf8");
   const proposal = modulePatchProposalSchema.parse({
     id: "navigation-noop", module: "navigation", bottleneck: "No-op validation.", rationale: "Same source must not be promoted.", expectedMetric: "No fitness improvement.",

@@ -50,11 +50,13 @@ export function evaluateCandidate(proposal: CandidateProposal, training: NamedSc
     baseline: { training: fitness(baseTraining), holdout: fitness(baseHoldout) },
     candidate: { training: fitness(trainingResult), holdout: fitness(holdoutResult) },
   };
+  const activated = [...trainingResult, ...holdoutResult].some((episode) => episode.capabilityActivations?.some((entry) => entry.id === `candidate:${proposal.id}` && entry.decisions > 0));
   const improvement = improves(objectives.candidate.training, objectives.baseline.training);
-  const accepted = improvement && !trainingRegression && !holdoutRegression;
+  const accepted = activated && improvement && !trainingRegression && !holdoutRegression;
   const reason = accepted
     ? "Candidate improved population-level training fitness without a training or holdout regression."
-    : !improvement ? "Candidate did not improve population-level training fitness."
+    : !activated ? "Candidate was never activated in any evaluated episode."
+      : !improvement ? "Candidate did not improve population-level training fitness."
       : trainingRegression ? "Candidate regressed a training score or success."
         : "Candidate lost a baseline holdout success.";
   return { proposal, baseline, training: trainingResult, holdout: holdoutResult, objectives, accepted, reason };

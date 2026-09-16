@@ -45,5 +45,5 @@ function runEnvironmentBenchmark(name: string, environment: BenchmarkEnvironment
     if (waits >= 2 || repeatedBlock >= 3) break;
   }
   const outcome = environment.observation().me?.score ?? 0;
-  return { name, achieved: outcome > 0, score: outcome, steps: decisions.length, acceptedActions, blockedActions, blockedReasons, waits, decisions };
+  return { name, achieved: outcome > 0, score: outcome, steps: decisions.length, acceptedActions, blockedActions, blockedReasons, waits, decisions, capabilityActivations: agent.capabilityStats() };
 }
