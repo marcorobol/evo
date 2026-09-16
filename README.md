@@ -58,9 +58,12 @@ gateway includono anche `llama-3.3-70b`, `qwen3-coder-next` e `gpt-4o`.
 | Patch modulari | `MODULE_PATCH_ATTEMPTS`, `MODULE_PATCH_MODELS`, `MODULE_PATCH_RUN_ID`, `EVOLUTION_FROM_SCRATCH` | `2`, Llama poi Qwen, ID timestamp, `0` |
 | Challenge | `CHALLENGE_ATTEMPTS`, `CHALLENGE_MODELS`, `CHALLENGE_RUN_ID` | `2`, Llama poi Qwen, ID timestamp |
 
-Il registro delle capability promosse (`agent-workspace/discovered-capabilities/`)
-e' ignorato da Git: dopo un clone fresco, `bun run src/migrate-promoted-policies.ts`
-lo ricostruisce dalla storia immutabile delle promozioni.
+Tutto lo stato sperimentale e' locale e ignorato da Git: capability promosse
+(`agent-workspace/discovered-capabilities/`), storia delle promozioni legacy
+(`agent-workspace/promoted/`), archivio delle proposte, report e scenari
+generati. Un clone fresco parte dal substrate puro; dopo un reset locale,
+`bun run src/migrate-promoted-policies.ts` ricostruisce lo store promosso
+dalla storia locale, se ancora presente.
 
 ## Riferimento comandi
 

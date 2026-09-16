@@ -5,5 +5,7 @@ traces/
 reports/
 agent-workspace/capability-archive/
 agent-workspace/discovered-capabilities/
+agent-workspace/promoted/
+scenarios/generated/
 work/repos/
 .module-sandbox/

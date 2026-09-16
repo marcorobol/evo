@@ -4,7 +4,18 @@ import { loadDiscoveredCapabilities, promoteCapability } from "./agent-workspace
 
 try { process.loadEnvFile(".env"); } catch { /* optional */ }
 const legacyPath = "agent-workspace/promoted/active.json";
-const manifest = JSON.parse(await readFile(legacyPath, "utf8")) as {
+let rawManifest: string;
+try {
+  rawManifest = await readFile(legacyPath, "utf8");
+} catch (error) {
+  if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+    console.error(`[migrate] no legacy promotion history at ${legacyPath}.`);
+    console.error("[migrate] nothing to migrate: either the store is already migrated or the local history was removed.");
+    process.exit(1);
+  }
+  throw error;
+}
+const manifest = JSON.parse(rawManifest) as {
   policies: Array<{ id: string; rationale: string; source: string }>;
 };
 if (!Array.isArray(manifest.policies)) throw new Error(`${legacyPath} has no policies array.`);
