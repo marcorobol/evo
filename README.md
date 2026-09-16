@@ -62,6 +62,44 @@ gateway includono anche `llama-3.3-70b`, `qwen3-coder-next` e `gpt-4o`.
 `NODE_ENV=test` e' riservata ai test e impedisce al solo runner
 `evolve:workspace:opencode` di caricare `.env`.
 
+## Riferimento comandi
+
+| Obiettivo | Comando consigliato | Stato |
+| --- | --- | --- |
+| Verificare il substrate | `npm test`, `npm run build` | Corrente |
+| Eseguire demo locale | `npm run start` | Corrente |
+| Eseguire benchmark | `evo benchmark all` | Corrente |
+| Generare capability diretta | `evo artifact [--model ID]` | Corrente |
+| Evolvere patch TypeScript | `evo module [--attempts N] [--models ID,ID] [--from-scratch]` | Corrente sperimentale |
+| Cercare nuove challenge | `evo challenge [--attempts N] [--models ID,ID]` | Corrente sperimentale |
+| Consultare i report | `evo list`, `evo show <run-id>` | Corrente |
+| Gioco Deliveroo.js live | `npm run start:deliveroo`, `npm run play:live:evolving`, `npm run explore:live:opencode` | Integrazione/demo |
+| Verificare LiteLLM/OpenCode | `npm run probe:opencode:qwen`, `npm run reproduce:opencode:plan` | Diagnostica |
+
+Gli script npm rimangono disponibili sia per automazione sia per riprodurre
+esperimenti. I flussi moderni sono:
+
+| Script npm | Equivalente CLI | Stato |
+| --- | --- | --- |
+| `benchmark:workspace`, `benchmark:families` | `evo benchmark workspace`, `evo benchmark families` | Corrente |
+| `evolve:artifact` | `evo artifact` | Corrente |
+| `evolve:module-workspace`, `evaluate:module-patch` | `evo module`; valutazione manuale con script | Corrente sperimentale |
+| `discover:challenge:opencode` | `evo challenge` | Corrente sperimentale |
+| `start`, `start:deliveroo`, `play:live:evolving`, `explore:live:opencode` | — | Demo/integration |
+| `probe:opencode`, `probe:opencode:qwen`, `reproduce:opencode:plan` | — | Diagnostica |
+
+I seguenti script sono **deprecati**: restano eseguibili per riproducibilita',
+ma non devono essere la base di nuovi esperimenti.
+
+| Script npm deprecati | Sostituzione |
+| --- | --- |
+| `generate:capability`, `generate:code-capability`, `generalize:capability`, `reuse:capability` | `evo artifact` |
+| `run:curriculum`, `evolve:curriculum` | `evo benchmark all` + `evo artifact` |
+| `evolve:generic`, `evolve:generic-curriculum`, `evolve:generic:opencode`, `explore:generic:opencode`, `synthesize:generic:opencode`, `evaluate:generic:opencode` | `evo artifact` oppure `evo module` |
+| `discover:game:opencode`, `evolve:variants:opencode` | `evo benchmark`, `evo artifact`, `evo challenge` |
+| `evolve:workspace:opencode`, `evaluate:workspace-candidate`, `promote:workspace-candidate` | percorso artifact/registry; mantenuti per le policy extension storiche |
+| `archive:capabilities` | solo migrazione/backfill di archivi storici |
+
 ## CLI sperimentale: `evo`
 
 La CLI organizza gli esperimenti in **sessioni**. Dopo `npm link` (oppure
@@ -72,9 +110,11 @@ link, gli stessi comandi si eseguono come `npm run cli -- <comando>`.
 evo help
 evo list
 evo show discovery-<id>
+evo benchmark all
+evo artifact
 ```
 
-### `evo new`: benchmark del curriculum
+### Deprecato: `evo new`
 
 ```bash
 evo new
@@ -85,9 +125,9 @@ DISCOVERY_MAX_STEPS=30 DISCOVERY_CODE_ATTEMPTS=3 evo new baseline-30
 scenari fissi: consegna semplice, porta/chiave, variante speculare, doppia
 consegna, due pacchi, batteria e detour. E' il benchmark riproducibile: per
 ogni episodio registra esplorazione, capability JSON, codice candidato e
-validazione.
+validazione. Per nuovi esperimenti usa `evo benchmark all`, poi `evo artifact`.
 
-### `evo evolve`: generalizzazione su varianti
+### Deprecato: `evo evolve`
 
 ```bash
 evo evolve --generations 10 --seed 42
@@ -101,9 +141,10 @@ la variante senza una nuova richiesta LLM. Se nessuna si applica, l'agente
 esplora e sintetizza codice soltanto dopo una traccia riuscita, poi lo testa su
 tre seed hold-out mai visti. Il codice viene promosso soltanto se supera
 training e tutti gli hold-out. L'output e' una sessione
-`evolve-battery-return-<timestamp>`.
+`evolve-battery-return-<timestamp>`. Per nuovi esperimenti usa `evo artifact`
+oppure `evo module`.
 
-### Sessioni, ripresa e rimozione
+### Report e comandi legacy
 
 ```bash
 evo show <run-id>
@@ -114,7 +155,7 @@ evo delete <run-id> --yes    # conferma la rimozione
 
 `resume` completa esclusivamente una discovery interrotta e conserva i budget
 registrati nel checkpoint. Le evoluzioni sono immutabili in questa prima
-versione: per una nuova generazione si usa un nuovo `evo evolve`.
+versione. `evo delete` rimuove soltanto artefatti delle sessioni storiche.
 
 ### Metriche e token
 
