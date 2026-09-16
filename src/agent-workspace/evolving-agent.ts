@@ -34,7 +34,7 @@ export function createEvolvingAgent(options: EvolvingAgentOptions = {}): Evolvab
     capabilityStats() { return registry.stats(); },
     recordOutcome(accepted) { memory.recordOutcome(accepted); },
     nextAction(state) {
-      const baseline = decide(state);
+      const baseline = blankSlate() ? blankDecision() : decide(state);
       const context = policyContext(state, baseline, memory.snapshot());
       const candidate = registry.decide(context);
       const decision = candidate ?? baseline;
@@ -42,6 +42,17 @@ export function createEvolvingAgent(options: EvolvingAgentOptions = {}): Evolvab
       return decision;
     },
   };
+}
+
+/**
+ * Pure blank-slate regime: the engineered substrate defers every decision, so
+ * any benchmark score is attributable to evolved capabilities alone. Read per
+ * call so sandboxed module clones and tests can toggle it.
+ */
+function blankSlate(): boolean { return process.env.EVOLUTION_BLANK_SLATE === "1"; }
+
+function blankDecision(): ModuleDecision {
+  return decision({ kind: "wait", reason: "Blank substrate: no engineered behavior." }, 0, "substrate", "Blank-slate regime: waiting for a capability to decide.");
 }
 
 function policyContext(state: BeliefState, baseline: ModuleDecision, memory: ReturnType<HeatmapMemory["snapshot"]>): PolicyContext {

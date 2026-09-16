@@ -9,6 +9,7 @@ import { generateStructuredJson } from "./openai-compatible-structured.js";
 import { loadScenario } from "./scenario-loader.js";
 
 try { process.loadEnvFile(".env"); } catch { /* optional */ }
+const blankSlate = process.env.EVOLUTION_BLANK_SLATE === "1";
 const runID = process.env.CAPABILITY_ARTIFACT_RUN_ID ?? `artifact-evolve-${Date.now()}`;
 const model = process.env.CAPABILITY_ARTIFACT_MODEL ?? process.env.OPENAI_MODEL ?? "qwen3.8-27b";
 const root = fileURLToPath(new URL("../scenarios/", import.meta.url));
@@ -28,12 +29,12 @@ const avoidList = archive.flatMap((entry) => {
   const purpose = typeof proposal.purpose === "string" ? proposal.purpose : typeof proposal.rationale === "string" ? proposal.rationale : undefined;
   return [{ id: proposal.id, ...(purpose ? { purpose } : {}), accepted: entry.accepted, reason: entry.reason }];
 });
-console.log(`[artifact-evolve] model=${model}; archived=${archive.length}; promoted=${active.length}`);
+console.log(`[artifact-evolve] model=${model}; archived=${archive.length}; promoted=${active.length}${blankSlate ? "; blank-slate substrate" : ""}`);
 let response: Awaited<ReturnType<typeof generateStructuredJson>> | undefined;
 let artifact: CapabilityArtifact | undefined;
 let failure: string | undefined;
 try {
-  response = await generateStructuredJson({ model, schemaName: "capability_artifact", schema: schema(), system: "Generate exactly one reusable domain-neutral decision capability. Do not patch files. Return JSON only. source must be a COMPLETE single JavaScript arrow expression beginning exactly '(context) => {'. It must be self-contained: no helper functions, imports, TypeScript, randomness, async code, placeholders, ellipsis, or code fences. It may read only context.observation and context.memory. Every non-undefined return must exactly look like { action: { kind: 'move', direction: 'up'|'right'|'down'|'left' } | { kind: 'pickup' } | { kind: 'putdown' } | { kind: 'wait', reason: '...' }, confidence: number, rationale: string }. Return undefined when inapplicable. Invent id and purpose from evidence; do not repeat an archived id or restate a near variant of an archived idea. activation.priority orders the capability against promoted layers; higher values are consulted first.", prompt: JSON.stringify({ archivedCapabilities: avoidList, failures: ["key required before a locked transition", "finite energy can make a delivery route infeasible", "partial observations may initially reveal no task"], activationContract: { hook: "decision", priority: "number, ordered against promoted capabilities; higher runs first" } }) });
+  response = await generateStructuredJson({ model, schemaName: "capability_artifact", schema: schema(), system: `Generate exactly one reusable domain-neutral decision capability. Do not patch files. Return JSON only. source must be a COMPLETE single JavaScript arrow expression beginning exactly '(context) => {'. It must be self-contained: no helper functions, imports, TypeScript, randomness, async code, placeholders, ellipsis, or code fences. It may read only context.observation and context.memory. Every non-undefined return must exactly look like { action: { kind: 'move', direction: 'up'|'right'|'down'|'left' } | { kind: 'pickup' } | { kind: 'putdown' } | { kind: 'wait', reason: '...' }, confidence: number, rationale: string }. Return undefined when inapplicable. ${blankSlate ? "No prior evidence about the environment is provided: hypothesize a strategy from first principles based on the structure the observation offers." : "Invent id and purpose from evidence."} Do not repeat an archived id or restate a near variant of an archived idea. activation.priority orders the capability against promoted layers; higher values are consulted first.`, prompt: JSON.stringify({ archivedCapabilities: avoidList, ...(blankSlate ? {} : { failures: ["key required before a locked transition", "finite energy can make a delivery route infeasible", "partial observations may initially reveal no task"] }), activationContract: { hook: "decision", priority: "number, ordered against promoted capabilities; higher runs first" } }) });
   artifact = capabilityArtifactSchema.parse(response.value);
 } catch (error) {
   failure = `generation failed: ${error instanceof Error ? error.message : String(error)}`;

@@ -55,6 +55,7 @@ gateway includono anche `llama-3.3-70b`, `qwen3-coder-next` e `gpt-4o`.
 | Gioco live | `DELIVEROO_URL`, `DELIVEROO_NAME`, `DELIVEROO_TOKEN`, `LIVE_ACTION_INTERVAL_MS` | vedi `.env.example` |
 | Capability artifact | `CAPABILITY_ARTIFACT_MODEL`, `CAPABILITY_ARTIFACT_RUN_ID` | modello principale, ID timestamp |
 | Sandbox decisionale | `CANDIDATE_DECISION_TIMEOUT_MS` | `100` |
+| Regime | `EVOLUTION_BLANK_SLATE` | `0` |
 | Patch modulari | `MODULE_PATCH_ATTEMPTS`, `MODULE_PATCH_MODELS`, `MODULE_PATCH_RUN_ID`, `EVOLUTION_FROM_SCRATCH` | `2`, Llama poi Qwen, ID timestamp, `0` |
 | Challenge | `CHALLENGE_ATTEMPTS`, `CHALLENGE_MODELS`, `CHALLENGE_RUN_ID` | `2`, Llama poi Qwen, ID timestamp |
 
@@ -194,6 +195,28 @@ Ogni iterazione archivia sempre la proposta e il trace di valutazione; promuove
 solo un miglioramento stretto e, dopo la promozione, rilancia i benchmark
 workspace e delle famiglie. Il riepilogo del ciclo e' un report
 `artifact-evolution-*.json` consultabile con `evo show`.
+
+### Regime blank-slate puro
+
+Di default il substrate ingegnerizzato (`baseline-policy`, navigazione e
+task-selection) risolve gia' le consegne semplici e il prompt della generazione
+contiene tre hint sulle meccaniche: l'evoluzione quindi non parte da una mente
+vuota. Il flag `--blank-slate` (o `EVOLUTION_BLANK_SLATE=1`) attiva il regime
+puro su `benchmark`, `artifact`, `evolve`, `module` e `challenge`:
+
+- il substrate rinvia ogni decisione (`wait`): ogni punto di benchmark e'
+  attribuibile solo alle capability evolute;
+- il prompt della generazione non contiene hint di gioco: il modello ipotizza
+  dai primi principi;
+- il witness del challenge flow resta una ricerca esaustiva indipendente, quindi
+  la solvibilita' continua a essere verificata.
+
+In questo regime la baseline e' 0 ovunque, quindi le prime promozioni sono
+facili e la selezione stringe man mano che lo stack cresce. Non mescolare i
+regimi sullo stesso store promosso: azzera
+`agent-workspace/discovered-capabilities/` quando passi da un regime all'altro.
+Il flusso `module` riceve comunque i sorgenti della superficie modificabile:
+e' revisione di codice esistente per costruzione.
 
 ### Revisioni modulari TypeScript
 

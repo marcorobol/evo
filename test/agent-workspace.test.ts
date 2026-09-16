@@ -29,6 +29,21 @@ test("workspace agent solves direct delivery and produces no bottleneck", async 
   assert.deepEqual(diagnose(episode), []);
 });
 
+test("blank-slate substrate defers every decision and scores nothing", async () => {
+  process.env.EVOLUTION_BLANK_SLATE = "1";
+  try {
+    const path = fileURLToPath(new URL("../scenarios/simple-delivery.v1.json", import.meta.url));
+    const { metadata, scenario } = await loadScenario(path);
+    const episode = runBenchmark(metadata.name, scenario, createEvolvingAgent());
+    assert.equal(episode.achieved, false);
+    assert.equal(episode.score, 0);
+    assert.ok(episode.decisions.every((entry) => entry.action.kind === "wait"));
+    assert.equal(episode.decisions[0]?.module, "substrate");
+  } finally {
+    delete process.env.EVOLUTION_BLANK_SLATE;
+  }
+});
+
 test("a terminal score is not diagnosed as a navigation regression", () => {
   assert.deepEqual(diagnose({
     name: "terminal-energy-case", achieved: true, score: 10, steps: 4,

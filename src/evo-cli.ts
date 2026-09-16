@@ -35,16 +35,22 @@ interface Report {
 
 const [command = "help", runID, ...options] = process.argv.slice(2);
 const commandOptions = runID?.startsWith("--") ? [runID, ...options] : options;
+const benchmarkTarget = runID && !runID.startsWith("--") ? runID : commandOptions.find((argument) => !argument.startsWith("--")) ?? "all";
 switch (command) {
   case "list": await list(); break;
   case "show": if (!runID) usage(1); else show(await load(runID)); break;
-  case "benchmark": await benchmark(runID ?? "all"); break;
+  case "benchmark": await benchmark(benchmarkTarget, commandOptions); break;
   case "artifact": await artifact(commandOptions); break;
   case "promote": if (!runID) usage(1); else await promote(runID); break;
   case "evolve": await evolve(commandOptions); break;
   case "module": await modulePatch(commandOptions); break;
   case "challenge": await challenge(commandOptions); break;
   default: usage(command === "help" ? 0 : 1);
+}
+
+/** Blank-slate regime: set before launching children so every step inherits it. */
+function enableBlankSlate(options: string[]): void {
+  if (options.includes("--blank-slate")) process.env.EVOLUTION_BLANK_SLATE = "1";
 }
 
 async function list(): Promise<void> {
@@ -81,7 +87,8 @@ function show(report: Report): void {
     : "Token usage: n/a for legacy reports.");
 }
 
-async function benchmark(target: string): Promise<void> {
+async function benchmark(target: string, options: string[]): Promise<void> {
+  enableBlankSlate(options);
   if (target === "workspace") return setExitCode(await launch({}, "benchmark:workspace"));
   if (target === "families") return setExitCode(await launch({}, "benchmark:families"));
   if (target === "all") {
@@ -93,6 +100,7 @@ async function benchmark(target: string): Promise<void> {
 }
 
 async function artifact(options: string[]): Promise<void> {
+  enableBlankSlate(options);
   const model = option(options, "--model");
   const code = await launch({ ...(model ? { CAPABILITY_ARTIFACT_MODEL: model } : {}) }, "evolve:artifact");
   if (code !== 0) process.exitCode = code;
@@ -115,6 +123,7 @@ async function promote(runID: string): Promise<void> {
  * when it fails; only a strict benchmark improvement is activated.
  */
 async function evolve(options: string[]): Promise<void> {
+  enableBlankSlate(options);
   const iterations = positiveInteger(option(options, "--iterations") ?? "1", "--iterations");
   const model = option(options, "--model");
   const evolutionID = `artifact-evolution-${Date.now()}`;
@@ -158,6 +167,7 @@ async function evolve(options: string[]): Promise<void> {
 }
 
 async function modulePatch(options: string[]): Promise<void> {
+  enableBlankSlate(options);
   const attempts = option(options, "--attempts");
   const models = option(options, "--models");
   const fromScratch = options.includes("--from-scratch");
@@ -169,6 +179,7 @@ async function modulePatch(options: string[]): Promise<void> {
 }
 
 async function challenge(options: string[]): Promise<void> {
+  enableBlankSlate(options);
   const attempts = option(options, "--attempts");
   const models = option(options, "--models");
   setExitCode(await launch({
@@ -291,6 +302,13 @@ Modern options:
   module --from-scratch      Ignore currently promoted capability artifacts.
   challenge --attempts N     Override CHALLENGE_ATTEMPTS.
   challenge --models ID,ID   Override CHALLENGE_MODELS.
+
+Regime:
+  --blank-slate              Also accepted by benchmark/artifact/evolve/module/
+                             challenge. The engineered substrate defers every
+                             decision and no game hints reach the model, so all
+                             benchmark score comes from evolved capabilities.
+                             Do not mix regimes on one promoted store.
 
 Reports:
   artifact-evolve-* reports direct decision-capability proposals.
