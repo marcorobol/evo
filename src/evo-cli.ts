@@ -1,6 +1,6 @@
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
-import { capabilityArtifactSchema } from "./agent-workspace/capability-artifact.js";
+import { capabilityArtifactSchema, compileCapabilityArtifact } from "./agent-workspace/capability-artifact.js";
 import { promoteCapability } from "./agent-workspace/capability-store.js";
 
 interface Episode {
@@ -104,6 +104,8 @@ async function promote(runID: string): Promise<void> {
   if (!report.artifact) throw new Error(`Report '${runID}' contains no capability artifact.`);
   if (report.evaluation?.accepted !== true) throw new Error(`Report '${runID}' is not promotable: ${report.evaluation?.reason ?? report.reason ?? "evaluation did not accept it"}`);
   const artifact = capabilityArtifactSchema.parse(report.artifact);
+  try { compileCapabilityArtifact(artifact); }
+  catch (error) { throw new Error(`Report '${runID}' holds an artifact that does not compile: ${error instanceof Error ? error.message : String(error)}`); }
   await promoteCapability(artifact);
   console.log(`[evo] promoted '${artifact.id}' from ${runID}. It is now loaded by benchmarks and subsequent artifact evaluations.`);
 }
@@ -117,33 +119,42 @@ async function evolve(options: string[]): Promise<void> {
   const model = option(options, "--model");
   const evolutionID = `artifact-evolution-${Date.now()}`;
   const results: Array<{ iteration: number; artifactRunID: string; promoted: boolean; reason?: string; exitCode: number }> = [];
+  let aborted = false;
   await mkdir("reports", { recursive: true });
   console.log(`[evo] starting ${iterations} artifact evolution iteration${iterations === 1 ? "" : "s"}; every candidate is evaluated before promotion.`);
-  for (let iteration = 1; iteration <= iterations; iteration += 1) {
-    const artifactRunID = `${evolutionID}-artifact-${iteration}`;
-    console.log(`\n[evo] iteration ${iteration}/${iterations}: generating ${artifactRunID}`);
-    const exitCode = await launch({ CAPABILITY_ARTIFACT_RUN_ID: artifactRunID, ...(model ? { CAPABILITY_ARTIFACT_MODEL: model } : {}) }, "evolve:artifact");
-    let promoted = false;
-    let reason: string | undefined;
-    if (exitCode === 0) {
-      try {
-        const report = await load(artifactRunID);
-        reason = report.evaluation?.reason ?? report.reason;
-        if (report.evaluation?.accepted) {
-          await promote(artifactRunID);
-          promoted = true;
-          console.log("[evo] running regression benchmarks after promotion.");
-          const workspaceExit = await launch({}, "benchmark:workspace");
-          const benchmarkExit = workspaceExit === 0 ? await launch({}, "benchmark:families") : workspaceExit;
-          if (benchmarkExit !== 0) throw new Error(`Post-promotion benchmark failed with exit code ${benchmarkExit}.`);
-        } else console.log(`[evo] candidate retained as evidence, not promoted: ${reason ?? "not accepted"}`);
-      } catch (error) { reason = error instanceof Error ? error.message : String(error); console.error(`[evo] iteration ${iteration} could not be promoted: ${reason}`); }
-    } else reason = `artifact generation exited with code ${exitCode}`;
-    results.push({ iteration, artifactRunID, promoted, ...(reason ? { reason } : {}), exitCode });
-    await writeFile(`reports/${evolutionID}.json`, `${JSON.stringify({ runID: evolutionID, iterations: results, model: model ?? "default", status: iteration === iterations ? "complete" : "running" }, null, 2)}\n`);
+  try {
+    for (let iteration = 1; iteration <= iterations; iteration += 1) {
+      const artifactRunID = `${evolutionID}-artifact-${iteration}`;
+      console.log(`\n[evo] iteration ${iteration}/${iterations}: generating ${artifactRunID}`);
+      const exitCode = await launch({ CAPABILITY_ARTIFACT_RUN_ID: artifactRunID, CAPABILITY_ARTIFACT_CYCLE_ID: evolutionID, ...(model ? { CAPABILITY_ARTIFACT_MODEL: model } : {}) }, "evolve:artifact");
+      let promoted = false;
+      let reason: string | undefined;
+      if (exitCode === 0) {
+        try {
+          const report = await load(artifactRunID);
+          reason = report.evaluation?.reason ?? report.reason;
+          if (report.evaluation?.accepted) {
+            await promote(artifactRunID);
+            promoted = true;
+            console.log("[evo] running regression benchmarks after promotion.");
+            const workspaceExit = await launch({}, "benchmark:workspace");
+            const benchmarkExit = workspaceExit === 0 ? await launch({}, "benchmark:families") : workspaceExit;
+            if (benchmarkExit !== 0) throw new Error(`Post-promotion benchmark failed with exit code ${benchmarkExit}.`);
+          } else console.log(`[evo] candidate retained as evidence, not promoted: ${reason ?? "not accepted"}`);
+        } catch (error) { reason = error instanceof Error ? error.message : String(error); console.error(`[evo] iteration ${iteration} could not be promoted: ${reason}`); }
+      } else reason = `artifact generation exited with code ${exitCode}`;
+      results.push({ iteration, artifactRunID, promoted, ...(reason ? { reason } : {}), exitCode });
+    }
+  } catch (error) {
+    aborted = true;
+    const reason = error instanceof Error ? error.message : String(error);
+    results.push({ iteration: results.length + 1, artifactRunID: `${evolutionID}-artifact-${results.length + 1}`, promoted: false, reason, exitCode: 1 });
+    console.error(`[evo] cycle aborted: ${reason}`);
+  } finally {
+    await writeFile(`reports/${evolutionID}.json`, `${JSON.stringify({ runID: evolutionID, iterations: results, model: model ?? "default", status: aborted ? "aborted" : "complete" }, null, 2)}\n`);
   }
   const promoted = results.filter((result) => result.promoted).length;
-  console.log(`\n[evo] complete: ${promoted}/${iterations} capabilities promoted. Summary: reports/${evolutionID}.json`);
+  console.log(`\n[evo] ${aborted ? "aborted" : "complete"}: ${promoted}/${iterations} capabilities promoted. Summary: reports/${evolutionID}.json`);
 }
 
 async function modulePatch(options: string[]): Promise<void> {
@@ -200,6 +211,8 @@ function reportKind(report: Report): string {
   if (report.runID.startsWith("artifact-evolution-")) return "evolution";
   if (report.artifact) return "artifact";
   if (report.outcomes) return "challenge";
+  // Legacy report shapes below: no current writer emits these, but existing
+  // report files stay readable as the help text promises.
   if (report.runID.startsWith("workspace-evolve-")) return "workspace";
   if (report.proposals) return report.runID.startsWith("module-") ? "module" : "workspace";
   if (report.families) return "families";
@@ -229,6 +242,7 @@ function reportStatus(report: Report): string {
 
 function rows(report: Report): Episode[] {
   if (report.episodes) return report.episodes;
+  // results is the legacy variants shape (evolve-battery-return-* reports).
   return (report.results ?? []).map((result) => ({
     scenario: `generation-${result.generation + 1}`,
     achieved: result.achieved,

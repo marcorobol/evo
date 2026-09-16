@@ -1,5 +1,4 @@
 import { z } from "zod";
-import type { PrimitiveAction } from "./domain.js";
 
 export const actionSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("move"), direction: z.enum(["up", "right", "down", "left"]) }),
@@ -27,18 +26,3 @@ export const capabilityProposalSchema = z.object({
 });
 
 export type CapabilityProposal = z.infer<typeof capabilityProposalSchema>;
-
-export function isExecutableProposal(proposal: CapabilityProposal): proposal is CapabilityProposal & { plan: PrimitiveAction[] } {
-  return proposal.plan.length > 0;
-}
-
-export const codeCapabilitySchema = z.object({
-  name: z.string().regex(/^[a-z][a-z0-9-]{2,63}$/),
-  goal: z.string().min(1).max(500),
-  applicability: z.string().min(1).max(1_000),
-  preconditions: preconditionsSchema,
-  source: z.string().min(20).max(6_000),
-  rationale: z.string().min(1).max(1_000),
-});
-
-export type CodeCapability = z.infer<typeof codeCapabilitySchema>;

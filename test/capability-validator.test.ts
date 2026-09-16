@@ -21,6 +21,7 @@ test("scores a successful capability without modifying the source episode", () =
     name: "deliver-parcel",
     goal: "Deliver the visible parcel.",
     applicability: "A parcel and a delivery tile are known.",
+    preconditions: { requiresKey: false, requiresDoor: false, requiresBattery: false, minimumParcels: 1 },
     plan: [
       { kind: "move", direction: "right" },
       { kind: "pickup" },

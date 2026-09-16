@@ -2,6 +2,7 @@ export interface StructuredUsage {
   input: number;
   output: number;
   reasoning: number;
+  requests: number;
 }
 
 export interface StructuredResponse {
@@ -29,10 +30,12 @@ export async function generateStructuredJson(input: { model: string; system: str
     temperature: 0.2,
   };
   const schema = { type: "json_schema", json_schema: { name: input.schemaName, strict: true, schema: input.schema } };
+  let requests = 1;
   let response = await request(endpoint, { ...common, response_format: schema });
   let mode: StructuredResponse["mode"] = "json_schema";
   if (!response.ok) {
     response = await request(endpoint, { ...common, response_format: { type: "json_object" } });
+    requests += 1;
     mode = "json_object";
   }
   const raw = await response.json() as {
@@ -51,7 +54,7 @@ export async function generateStructuredJson(input: { model: string; system: str
   return {
     value, rawText, raw, mode,
     usage: {
-      input: number(raw.usage?.prompt_tokens), output: number(raw.usage?.completion_tokens), reasoning: number(raw.usage?.completion_tokens_details?.reasoning_tokens),
+      input: number(raw.usage?.prompt_tokens), output: number(raw.usage?.completion_tokens), reasoning: number(raw.usage?.completion_tokens_details?.reasoning_tokens), requests,
     },
   };
 }

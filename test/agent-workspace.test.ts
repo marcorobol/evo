@@ -55,7 +55,7 @@ test("frontier-only exploration exposes a dead-end bottleneck", async () => {
       const visited = new Set(context.memory.map((item) => `${item.x},${item.y}`));
       const next = [{ direction: "down" as const, x: o.me.x, y: o.me.y + 1 }, { direction: "right" as const, x: o.me.x + 1, y: o.me.y }]
         .find((item) => !visited.has(`${item.x},${item.y}`));
-      return next ? { action: { kind: "move", direction: next.direction }, confidence: 1, rationale: "frontier only" } : undefined;
+      return next ? { action: { kind: "move", direction: next.direction }, confidence: 1, rationale: "frontier only", module: "frontier-only-test" } : undefined;
     }, extensionModule: "frontier-only-test",
   }), 1);
   assert.equal(episode.achieved, false);

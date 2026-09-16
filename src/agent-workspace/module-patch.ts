@@ -5,14 +5,13 @@ import { z } from "zod";
 import { fitness, improves, type Fitness } from "./fitness.js";
 import { runNamedScenario, type NamedScenario } from "./candidate-evaluator.js";
 import type { BenchmarkEpisode } from "./contracts.js";
-import type { PolicyExtension } from "./contracts.js";
 import type { DecisionCapability } from "./capability-registry.js";
 
-const targetFiles = ["src/agent-workspace/navigation.ts", "src/agent-workspace/task-selection.ts", "src/agent-workspace/memory.ts", "src/agent-workspace/coordination.ts", "src/agent-workspace/exploration.ts", "src/agent-workspace/evolving-agent.ts"] as const;
+const targetFiles = ["src/agent-workspace/navigation.ts", "src/agent-workspace/task-selection.ts", "src/agent-workspace/memory.ts", "src/agent-workspace/coordination.ts", "src/agent-workspace/evolving-agent.ts"] as const;
 
 export const modulePatchProposalSchema = z.object({
   id: z.string().regex(/^[a-z][a-z0-9-]{2,80}$/),
-  /** A capability name invented by the proposing agent, retained for legacy JSON compatibility. */
+  /** Capability-name identity used for archive dedupe and report labels; kept required for JSON compatibility with existing reports. */
   module: z.string().min(3).max(120),
   bottleneck: z.string().min(1).max(1_500),
   rationale: z.string().min(1).max(2_000),
@@ -32,9 +31,6 @@ export interface ModulePatchEvaluation {
 }
 export interface ModulePatchEvaluationOptions {
   baseCapabilities?: ReadonlyArray<DecisionCapability>;
-  /** @deprecated Compatibility with policy-layer experiments. */
-  baseExtensions?: ReadonlyArray<PolicyExtension>;
-  baseModules?: ReadonlyArray<string>;
 }
 
 /** Returns the explicit, small surface an evolving model is permitted to edit. */
@@ -57,9 +53,7 @@ export async function evaluateModulePatch(proposal: ModulePatchProposal, trainin
 
     const baselineAgent = await import(pathToFileURL(join(resolve(baselineRoot), "agent-workspace/evolving-agent.ts")).href);
     const candidateAgent = await import(pathToFileURL(join(resolve(candidateRoot), "agent-workspace/evolving-agent.ts")).href);
-    const agentOptions = options.baseCapabilities
-      ? { capabilities: options.baseCapabilities }
-      : { extensions: options.baseExtensions, extensionModules: options.baseModules };
+    const agentOptions = options.baseCapabilities ? { capabilities: options.baseCapabilities } : {};
     const baseline = [...training, ...holdout].map((item) => runNamedScenario(item, baselineAgent.createEvolvingAgent(agentOptions)));
     const trainingResult = training.map((item) => runNamedScenario(item, candidateAgent.createEvolvingAgent(agentOptions)));
     const holdoutResult = holdout.map((item) => runNamedScenario(item, candidateAgent.createEvolvingAgent(agentOptions)));

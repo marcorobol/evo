@@ -11,7 +11,7 @@ import { loadScenario } from "./scenario-loader.js";
 
 try { process.loadEnvFile(".env"); } catch { /* optional */ }
 const attempts = positive("MODULE_PATCH_ATTEMPTS", 2);
-const models = (process.env.MODULE_PATCH_MODELS ?? process.env.OPENAI_MODEL ?? "qwen3.8-27b").split(",").map((value) => value.trim()).filter(Boolean);
+const models = (process.env.MODULE_PATCH_MODELS ?? "llama-3.3-70b,qwen3.8-27b").split(",").map((value) => value.trim()).filter(Boolean);
 const runID = process.env.MODULE_PATCH_RUN_ID ?? `module-evolve-${Date.now()}`;
 const fromScratch = process.env.EVOLUTION_FROM_SCRATCH === "1";
 const root = fileURLToPath(new URL("../scenarios/", import.meta.url));
@@ -24,7 +24,7 @@ const knownCapabilities: ArchivedCapability[] = [...priorCapabilities];
 const agentOptions = { capabilities: active };
 const baseline = [...training, ...holdout].map((item) => runNamedScenario(item, createEvolvingAgent(agentOptions)));
 const failures = baseline.filter((episode) => !episode.achieved);
-const usage: StructuredUsage = { input: 0, output: 0, reasoning: 0 };
+const usage: StructuredUsage = { input: 0, output: 0, reasoning: 0, requests: 0 };
 const proposals: Array<{ attempt: number; model: string; accepted: boolean; reason: string; proposal?: unknown; raw?: string }> = [];
 const archivePaths: string[] = [];
 let feedback: string | undefined;
@@ -38,7 +38,7 @@ for (let attempt = 1; failures.length && attempt <= attempts; attempt += 1) {
   try {
     console.log(`[module-evolve] requesting revision ${attempt}/${attempts} from ${model}`);
     const response = await generateStructuredJson({ model, system: systemPrompt(), prompt: JSON.stringify({ manifest: modulePatchManifest(), failures, sources: await sources(), priorCapabilities: knownCapabilities, previousFeedback: feedback }), schemaName: "module_patch", schema: schema() });
-    usage.input += response.usage.input; usage.output += response.usage.output; usage.reasoning += response.usage.reasoning;
+    usage.input += response.usage.input; usage.output += response.usage.output; usage.reasoning += response.usage.reasoning; usage.requests += response.usage.requests;
     raw = response.rawText;
     const proposal = parsedProposal = modulePatchProposalSchema.parse(response.value);
     const duplicate = findSimilarCapability(proposal, knownCapabilities);
@@ -52,7 +52,7 @@ for (let attempt = 1; failures.length && attempt <= attempts; attempt += 1) {
       console.log(`[module-evolve] ${proposal.id}: duplicate rejected before evaluation`);
       continue;
     }
-    const evaluation = await evaluateModulePatch(proposal, training, holdout, agentOptions);
+    const evaluation = await evaluateModulePatch(proposal, training, holdout, { baseCapabilities: active });
     proposals.push({ attempt, model, accepted: evaluation.accepted, reason: evaluation.reason, proposal, raw });
     const archived = { runID, attempt, model, createdAt: new Date().toISOString(), accepted: evaluation.accepted, reason: evaluation.reason, proposal, ...(raw ? { raw } : {}) };
     archivePaths.push(await archiveCapability(archived));
@@ -70,13 +70,13 @@ for (let attempt = 1; failures.length && attempt <= attempts; attempt += 1) {
   }
 }
 await mkdir("reports", { recursive: true });
-await writeFile(`reports/${runID}.json`, `${JSON.stringify({ runID, fromScratch, models, activeCapabilities: active.map((capability) => capability.descriptor.id), priorCapabilityCount: priorCapabilities.length, archivePaths, families: families.map(({ id }) => id), baseline, proposals, usage }, null, 2)}\n`);
+await writeFile(`reports/${runID}.json`, `${JSON.stringify({ runID, fromScratch, models, activeCapabilities: active.map((capability) => capability.descriptor.id), priorCapabilityCount: priorCapabilities.length, archivePaths, families: families.map(({ id }) => id), baseline, proposals, usage, usageScope: "chat-completions" }, null, 2)}\n`);
 console.log(`[module-evolve] report: reports/${runID}.json`);
 
 async function scenario(file: string, observationRadius?: number): Promise<NamedScenario> { const loaded = await loadScenario(`${root}/${file}.v1.json`); return { name: loaded.metadata.name, scenario: loaded.scenario, ...(observationRadius === undefined ? {} : { observationRadius }) }; }
 async function sources() {
   const files = modulePatchManifest().editableFiles;
-  const entries = await Promise.all(files.map(async (file) => {
+  const entries = await Promise.all(files.map(async (file): Promise<readonly [string, string] | undefined> => {
     try { return [file, await readFile(file, "utf8")] as const; }
     catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined; throw error; }
   }));

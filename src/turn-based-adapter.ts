@@ -1,4 +1,3 @@
-import { actionSchema } from "./capability-contract.js";
 import type { PrimitiveAction } from "./domain.js";
 import type { EnvironmentManifest, EnvironmentStep, ExperimentEnvironment } from "./environment-contract.js";
 import { TurnBasedEnvironment } from "./turn-based-environment.js";
@@ -40,11 +39,6 @@ export class TurnBasedAdapter implements ExperimentEnvironment<PrimitiveAction, 
     const score = this.environment.observation().me?.score ?? 0;
     return { score, achieved: score > 0 };
   }
-}
-
-export function decodeTurnBasedAction(action: Record<string, unknown>): PrimitiveAction | undefined {
-  const result = actionSchema.safeParse(action);
-  return result.success ? result.data : undefined;
 }
 
 function serialize(beliefs: ReturnType<TurnBasedEnvironment["observation"]>): TurnBasedObservation {

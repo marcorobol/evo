@@ -11,7 +11,7 @@ export async function loadDiscoveredCapabilities(): Promise<DecisionCapability[]
     return raw.capabilities.map((item) => compileCapabilityArtifact(capabilityArtifactSchema.parse(item)));
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
-    throw error;
+    throw new Error(`The discovered capability registry is invalid and was not loaded: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 

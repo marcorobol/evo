@@ -20,7 +20,7 @@ const holdout = [...await Promise.all([scenario("simple-delivery"), scenario("tw
 const active = await loadDiscoveredCapabilities();
 const evaluation = await evaluateModulePatch(proposal, training, holdout, { baseCapabilities: active });
 await mkdir("reports", { recursive: true });
-const report = `reports/module-patch-${proposal.id}-${Date.now()}.json`;
-await writeFile(report, `${JSON.stringify({ ...evaluation, activeCapabilities: active.map((capability) => capability.descriptor.id) }, null, 2)}\n`);
+const runID = `module-patch-${proposal.id}-${Date.now()}`;
+await writeFile(`reports/${runID}.json`, `${JSON.stringify({ runID, ...evaluation, activeCapabilities: active.map((capability) => capability.descriptor.id) }, null, 2)}\n`);
 console.log(`[module-patch] ${proposal.id}: ${evaluation.accepted ? "PROMOTABLE" : "rejected"}; ${evaluation.reason}`);
-console.log(`[module-patch] report: ${report}`);
+console.log(`[module-patch] report: reports/${runID}.json`);

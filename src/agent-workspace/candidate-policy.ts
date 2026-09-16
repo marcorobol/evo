@@ -22,23 +22,37 @@ export type CandidateProposal = z.infer<typeof candidateProposalSchema>;
 
 const forbidden = /\b(?:import|export|require|process|globalThis|constructor|Function|eval|WebAssembly|fetch|XMLHttpRequest)\b/;
 
+function decisionTimeoutMs(): number {
+  const value = Number(process.env.CANDIDATE_DECISION_TIMEOUT_MS ?? 100);
+  return Number.isFinite(value) && value >= 1 ? value : 100;
+}
+
 export function compileCandidate(proposal: CandidateProposal): PolicyExtension {
   if (forbidden.test(proposal.source)) throw new Error("Candidate source uses a forbidden capability.");
+  // One persistent realm per candidate: the function and its globals stay
+  // inside the VM, so every later decision call stays bounded by a timeout.
+  const realm: Record<string, unknown> = { __candidate: undefined, __input: undefined, __result: undefined };
+  vm.createContext(realm);
   let value: unknown;
   try {
-    value = new vm.Script(`\"use strict\"; (${proposal.source})`, { filename: `${proposal.id}.candidate.js` })
-      .runInNewContext(Object.create(null), { timeout: 100 });
+    value = new vm.Script(`\"use strict\"; (__candidate = (${proposal.source}))`, { filename: `${proposal.id}.candidate.js` })
+      .runInContext(realm, { timeout: 100 });
   } catch (error) {
     throw new Error(`Candidate does not compile: ${message(error)}`);
   }
   if (typeof value !== "function") throw new Error("Candidate source must be one function expression.");
+  const invoke = new vm.Script(`\"use strict\"; __result = __candidate(__input)`, { filename: `${proposal.id}.decision.js` });
   return (context) => {
-    let result: unknown;
+    realm.__input = structuredClone(context);
+    realm.__result = undefined; // a timed-out call must never surface a stale decision
     try {
-      result = (value as (input: Readonly<PolicyContext>) => unknown)(structuredClone(context));
+      invoke.runInContext(realm, { timeout: decisionTimeoutMs() });
     } catch (error) {
       throw new Error(`Candidate execution failed: ${message(error)}`);
     }
+    const result: unknown = realm.__result;
+    realm.__input = undefined;
+    realm.__result = undefined;
     if (result === undefined || result === null) return undefined;
     return parseDecision(result, proposal.id);
   };

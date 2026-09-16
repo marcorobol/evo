@@ -18,7 +18,7 @@ const proposalSchema = z.object({
 });
 const active = await loadDiscoveredCapabilities();
 const outcomes: Array<{ attempt: number; model: string; name?: string; accepted: boolean; reason: string; baseline?: { score: number; achieved: boolean }; witness?: { score: number; acceptedActions: number }; raw?: { mode: string; text: string } }> = [];
-const usage: StructuredUsage = { input: 0, output: 0, reasoning: 0 };
+const usage: StructuredUsage = { input: 0, output: 0, reasoning: 0, requests: 0 };
 let feedback: string | undefined;
 
 console.log(`[challenge-discovery] '${runID}': generating up to ${attempts} novel deterministic challenge(s)`);
@@ -30,6 +30,7 @@ for (let attempt = 1; attempt <= attempts; attempt += 1) {
       usage.input += response.usage.input;
       usage.output += response.usage.output;
       usage.reasoning += response.usage.reasoning;
+      usage.requests += response.usage.requests;
       const wrapped = proposalSchema.safeParse(response.value);
       const proposal = wrapped.success ? wrapped.data : { scenario: scenarioSchema.parse(response.value) };
       const { metadata, scenario } = parseScenario(JSON.stringify(proposal.scenario));
@@ -57,12 +58,12 @@ for (let attempt = 1; attempt <= attempts; attempt += 1) {
       const raw = error instanceof StructuredJsonError && error.rawText
         ? { mode: error.mode ?? "unknown", text: error.rawText }
         : undefined;
-      outcomes.push({ attempt, model, accepted: false, reason, raw });
+      outcomes.push({ attempt, model, accepted: false, reason, ...(raw ? { raw } : {}) });
       feedback = `Previous candidate was rejected: ${reason}. Return only an object conforming to the JSON Schema.`;
     }
   }
 await mkdir("reports", { recursive: true });
-const report = { runID, models, activeCapabilities: active.map((capability) => capability.descriptor.id), outcomes, usage: { requests: outcomes.length, ...usage } };
+const report = { runID, models, activeCapabilities: active.map((capability) => capability.descriptor.id), outcomes, usage, usageScope: "chat-completions" };
 await writeFile(`reports/${runID}.json`, `${JSON.stringify(report, null, 2)}\n`);
 console.log(`[challenge-discovery] report: reports/${runID}.json`);
 

@@ -1,7 +1,7 @@
 import type { TurnBasedScenario } from "../turn-based-environment.js";
 import { runBenchmark, runPartialObservationBenchmark } from "./benchmark-runner.js";
 import { compileCandidate, type CandidateProposal } from "./candidate-policy.js";
-import type { BenchmarkEpisode, PolicyExtension } from "./contracts.js";
+import type { BenchmarkEpisode, EvolvableAgent } from "./contracts.js";
 import { createEvolvingAgent } from "./evolving-agent.js";
 import { fitness, improves, type Fitness } from "./fitness.js";
 import { policyCapability, type DecisionCapability } from "./capability-registry.js";
@@ -28,10 +28,8 @@ export interface CandidateEvaluation {
 export interface EvaluationOptions {
   /** Previously promoted behavior is part of the baseline for later evolution. */
   baseCapabilities?: ReadonlyArray<DecisionCapability>;
-  /** @deprecated Compatibility with policy-layer experiments. */
-  baseExtensions?: ReadonlyArray<PolicyExtension>;
-  /** @deprecated Compatibility with policy-layer experiments. */
-  baseModules?: ReadonlyArray<string>;
+  /** Declared activation priority of the candidate; 0 when unspecified. */
+  candidatePriority?: number;
 }
 
 /**
@@ -40,11 +38,12 @@ export interface EvaluationOptions {
  * and must retain every previously solved holdout task.
  */
 export function evaluateCandidate(proposal: CandidateProposal, training: NamedScenario[], holdout: NamedScenario[], options: EvaluationOptions = {}): CandidateEvaluation {
-  const baseCapabilities = options.baseCapabilities ?? (options.baseExtensions ?? []).map((extension, index) => policyCapability(options.baseModules?.[index] ?? `promoted:${index + 1}`, extension));
+  const baseCapabilities = options.baseCapabilities ?? [];
   const baselineAgent = () => createEvolvingAgent({ capabilities: baseCapabilities });
   const baseline = [...training, ...holdout].map((item) => runNamedScenario(item, baselineAgent()));
   const extension = compileCandidate(proposal);
-  const candidateCapability = policyCapability(`candidate:${proposal.id}`, extension);
+  const candidateID = `candidate:${proposal.id}`;
+  const candidateCapability = policyCapability(candidateID, extension, options.candidatePriority ?? 0);
   const candidate = (items: NamedScenario[]) => items.map((item) => runNamedScenario(item, createEvolvingAgent({ capabilities: [candidateCapability, ...baseCapabilities] })));
   const trainingResult = candidate(training);
   const holdoutResult = candidate(holdout);
@@ -56,12 +55,16 @@ export function evaluateCandidate(proposal: CandidateProposal, training: NamedSc
     baseline: { training: fitness(baseTraining), holdout: fitness(baseHoldout) },
     candidate: { training: fitness(trainingResult), holdout: fitness(holdoutResult) },
   };
-  const activated = [...trainingResult, ...holdoutResult].some((episode) => episode.capabilityActivations?.some((entry) => entry.id === `candidate:${proposal.id}` && entry.decisions > 0));
+  const activationStats = [...trainingResult, ...holdoutResult].map((episode) => episode.capabilityActivations?.find((entry) => entry.id === candidateID));
+  const activated = activationStats.some((entry) => (entry?.decisions ?? 0) > 0);
+  const invocations = activationStats.reduce((total, entry) => total + (entry?.invocations ?? 0), 0);
   const improvement = improves(objectives.candidate.training, objectives.baseline.training);
   const accepted = activated && improvement && !trainingRegression && !holdoutRegression;
   const reason = accepted
     ? "Candidate improved population-level training fitness without a training or holdout regression."
-    : !activated ? "Candidate was never activated in any evaluated episode."
+    : !activated ? invocations === 0
+      ? "Candidate was never invoked in any evaluated episode; it is shadowed by higher-priority capabilities or never applicable."
+      : `Candidate deferred on all ${invocations} invocation(s); it never returned a decision.`
       : !improvement ? "Candidate did not improve population-level training fitness."
       : trainingRegression ? "Candidate regressed a training score or success."
         : "Candidate lost a baseline holdout success.";

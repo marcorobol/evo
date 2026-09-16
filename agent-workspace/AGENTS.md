@@ -13,14 +13,16 @@ Each change proposal must name: the observed bottleneck, files to modify, the
 expected metric change, and regression benchmarks. Generated code is accepted
 only after a separate holdout benchmark passes.
 
-The first mutable boundary is a policy extension. A model emits one JavaScript
-function expression in the `CandidateProposal` schema; it receives only a
-read-only serializable observation, baseline decision, and episodic memory. It
-may return one valid primitive action or `undefined` to defer to the baseline.
-It has no imports, process, network, filesystem, or game handle. Evaluate it
-with `npm run evaluate:workspace-candidate -- proposal.json`. A candidate is
-promotable only if it improves a training score, has no training-score
-regression, and retains all baseline holdout successes.
+The first mutable boundary is a capability artifact (`evo artifact`). A model
+emits one JavaScript arrow expression in the `capabilityArtifactSchema` shape;
+it receives only a read-only serializable observation, baseline decision, and
+episodic memory. It may return one valid primitive action or `undefined` to
+defer to the baseline. It has no imports, process, network, filesystem, or
+game handle, and each decision call is bounded by a sandbox timeout. An
+evaluated artifact stays promotable until the host activates it with
+`evo promote <artifact-run-id>`. A candidate is promotable only if it improves
+a training score, has no training-score regression, and retains all baseline
+holdout successes.
 
 The second mutable boundary is a capability revision. It must be a JSON proposal
 containing complete TypeScript contents only for the neutral editable surface

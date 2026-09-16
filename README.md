@@ -8,8 +8,9 @@ azioni nell'ambiente.
 Il percorso sperimentale principale e' ora l'ambiente locale turn-based:
 `TurnBasedEnvironment.step(action)` avanza esattamente di un turno. Non ha
 timer, rendering o socket, cosi' il validatore puo' scegliere quando far
-progredire un episodio. L'adapter Deliveroo.js resta disponibile per confronti
-con il gioco originale.
+progredire un episodio. Il collegamento al gioco originale passa direttamente
+dal `DeliverooGateway` di `npm run start:deliveroo` e
+`npm run play:live:evolving`.
 
 ## Avvio
 
@@ -50,14 +51,16 @@ gateway includono anche `llama-3.3-70b`, `qwen3-coder-next` e `gpt-4o`.
 | Gruppo | Variabili | Default |
 | --- | --- | --- |
 | Modello | `OPENAI_BASE_URL`, `OPENAI_API_KEY`, `OPENAI_MODEL` | gateway UniTn, chiave vuota, `qwen3.8-27b` |
-| OpenCode | `OPENCODE_PROVIDER`, `OPENCODE_PLANNER_TIMEOUT_MS`, `OPENCODE_HEARTBEAT_MS`, `OPENCODE_DEBUG_PROMPTS` | `unitn-litellm`, `180000`, `5000`, `0` |
-| Gioco live | `DELIVEROO_URL`, `DELIVEROO_NAME`, `DELIVEROO_TOKEN`, `DELIVEROO_STEP_SETTLE_MS`, `LIVE_ACTION_INTERVAL_MS`, `LIVE_MAX_STEPS`, `DELIVEROO_READY_TIMEOUT_MS` | vedi `.env.example` |
+| OpenCode | `OPENCODE_PROVIDER` | `unitn-litellm` |
+| Gioco live | `DELIVEROO_URL`, `DELIVEROO_NAME`, `DELIVEROO_TOKEN`, `LIVE_ACTION_INTERVAL_MS` | vedi `.env.example` |
 | Capability artifact | `CAPABILITY_ARTIFACT_MODEL`, `CAPABILITY_ARTIFACT_RUN_ID` | modello principale, ID timestamp |
+| Sandbox decisionale | `CANDIDATE_DECISION_TIMEOUT_MS` | `100` |
 | Patch modulari | `MODULE_PATCH_ATTEMPTS`, `MODULE_PATCH_MODELS`, `MODULE_PATCH_RUN_ID`, `EVOLUTION_FROM_SCRATCH` | `2`, Llama poi Qwen, ID timestamp, `0` |
 | Challenge | `CHALLENGE_ATTEMPTS`, `CHALLENGE_MODELS`, `CHALLENGE_RUN_ID` | `2`, Llama poi Qwen, ID timestamp |
 
-`NODE_ENV=test` e' riservata ai test e impedisce al solo runner
-`evolve:workspace:opencode` di caricare `.env`.
+Il registro delle capability promosse (`agent-workspace/discovered-capabilities/`)
+e' ignorato da Git: dopo un clone fresco, `bun run src/migrate-promoted-policies.ts`
+lo ricostruisce dalla storia immutabile delle promozioni.
 
 ## Riferimento comandi
 
@@ -113,8 +116,8 @@ processo di ripresa.
 Le richieste del loop sperimentale sono isolate: ogni decisione riceve un
 manifest, l'osservazione corrente e un registro compatto delle evidenze, senza
 trascinare l'intera conversazione OpenCode. Questo mantiene il costo per
-iterazione controllato; `OPENCODE_DEBUG_PROMPTS=1` resta disponibile per
-ispezionare prompt e risposte in console.
+iterazione controllato. Ogni chiamata del codice generato alla capability e'
+limitata da un timeout sandbox (`CANDIDATE_DECISION_TIMEOUT_MS`).
 
 ## Workspace evolvibile dell'agente
 

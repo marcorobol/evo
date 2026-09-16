@@ -35,3 +35,16 @@ test("candidate evaluator rejects a candidate that does not improve training", a
 test("candidate schema rejects code that bypasses the observation boundary", () => {
   assert.throws(() => candidateProposalSchema.parse({ ...proposal, id: "invalid-context-access", source: "(context) => context.me ? { action: { kind: 'pickup' } } : undefined" }), /context\.observation/);
 });
+
+test("a non-terminating candidate is interrupted by the decision timeout", () => {
+  process.env.CANDIDATE_DECISION_TIMEOUT_MS = "50";
+  try {
+    const extension = compileCandidate({ ...proposal, id: "infinite-loop", source: "(context) => { while (context.observation.me !== null) { continue; } return undefined; }" });
+    assert.throws(() => extension({
+      observation: { me: { id: "a", x: 0, y: 0, score: 0 }, tiles: [], parcels: [], keys: [], doors: [], batteries: [] },
+      baseline: { action: { kind: "wait", reason: "baseline" }, confidence: 0, rationale: "baseline", module: "baseline" }, memory: [],
+    }), /Candidate execution failed/);
+  } finally {
+    delete process.env.CANDIDATE_DECISION_TIMEOUT_MS;
+  }
+});

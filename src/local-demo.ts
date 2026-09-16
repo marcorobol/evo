@@ -12,6 +12,7 @@ const plan: CapabilityProposal = {
   name: "key-door-delivery",
   goal: "Acquire the key, cross the door, collect the parcel, and deliver it.",
   applicability: "The key, door, parcel, and delivery tile are all known.",
+  preconditions: { requiresKey: true, requiresDoor: true, requiresBattery: false, minimumParcels: 1 },
   plan: [
     { kind: "pickup" },
     { kind: "move", direction: "right" },
