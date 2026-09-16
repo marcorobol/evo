@@ -6,3 +6,4 @@ reports/
 capabilities/generic-library.json
 capabilities/discovery-*.json
 work/repos/
+.module-sandbox/

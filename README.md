@@ -25,6 +25,222 @@ La demo locale e il validatore non usano un LLM e non richiedono una chiave API.
 Una chiave e' necessaria solo dopo aver configurato un provider cloud per
 `CapabilityProposer`; potra' anche essere sostituita da un modello locale.
 
+## CLI sperimentale: `evo`
+
+La CLI organizza gli esperimenti in **sessioni**. Dopo `npm link` (oppure
+`bun link`) dalla root del progetto, `evo` e' disponibile nella shell. Senza
+link, gli stessi comandi si eseguono come `npm run cli -- <comando>`.
+
+```bash
+evo help
+evo list
+evo show discovery-<id>
+```
+
+### `evo new`: benchmark del curriculum
+
+```bash
+evo new
+DISCOVERY_MAX_STEPS=30 DISCOVERY_CODE_ATTEMPTS=3 evo new baseline-30
+```
+
+`evo new` crea una sessione `discovery-<timestamp>` ed esegue una volta i sette
+scenari fissi: consegna semplice, porta/chiave, variante speculare, doppia
+consegna, due pacchi, batteria e detour. E' il benchmark riproducibile: per
+ogni episodio registra esplorazione, capability JSON, codice candidato e
+validazione.
+
+### `evo evolve`: generalizzazione su varianti
+
+```bash
+evo evolve --generations 10 --seed 42
+```
+
+La prima famiglia disponibile e' `battery-return`. Ogni generazione crea una
+variante deterministica diversa dal seed (direzione, distanze, batteria e
+budget energetico). Prima di chiedere al modello, il runtime tenta le
+capability in codice gia' promosse: una capability valida risolve direttamente
+la variante senza una nuova richiesta LLM. Se nessuna si applica, l'agente
+esplora e sintetizza codice soltanto dopo una traccia riuscita, poi lo testa su
+tre seed hold-out mai visti. Il codice viene promosso soltanto se supera
+training e tutti gli hold-out. L'output e' una sessione
+`evolve-battery-return-<timestamp>`.
+
+### Sessioni, ripresa e rimozione
+
+```bash
+evo show <run-id>
+evo resume discovery-<id>
+evo delete <run-id>          # anteprima
+evo delete <run-id> --yes    # conferma la rimozione
+```
+
+`resume` completa esclusivamente una discovery interrotta e conserva i budget
+registrati nel checkpoint. Le evoluzioni sono immutabili in questa prima
+versione: per una nuova generazione si usa un nuovo `evo evolve`.
+
+### Metriche e token
+
+`evo list` riporta successo, score e codice validato. `evo show` indica anche
+quando una generazione e' stata risolta riusando codice esistente. Le colonne `IN`, `OUT` e
+`REASON` indicano rispettivamente token di input, output finale e ragionamento.
+I report precedenti all'introduzione della telemetria mostrano `n/a`. I token
+di una sessione ripresa sono marcati come parziali, poiche' coprono solo il
+processo di ripresa.
+
+Le richieste del loop sperimentale sono isolate: ogni decisione riceve un
+manifest, l'osservazione corrente e un registro compatto delle evidenze, senza
+trascinare l'intera conversazione OpenCode. Questo mantiene il costo per
+iterazione controllato; `OPENCODE_DEBUG_PROMPTS=1` resta disponibile per
+ispezionare prompt e risposte in console.
+
+## Workspace evolvibile dell'agente
+
+Il piano JSON non e' l'unico artefatto evolutivo. Il codice operativo e'
+diviso in moduli ispezionabili in `src/agent-workspace/`:
+
+- `navigation`: A* e il contratto di attraversabilita' fornito dall'ambiente;
+- `memory`: heatmap e trace locali all'episodio;
+- `task-selection`: ranking di task e reward;
+- `coordination`: contratto iniziale per intenzioni e riserve multi-agente;
+- `diagnostics`: rende leggibili eventi e benchmark falliti; non prescrive modifiche al modello.
+
+Esegui il benchmark iniziale con:
+
+```bash
+npm run benchmark:workspace
+```
+
+Per misurare generalizzazione, esegui anche le famiglie deterministiche: i seed
+di training sono disponibili al ciclo evolutivo, mentre quelli holdout restano
+separati. La fitness riporta copertura, score medio e minimo, passi delle sole
+esecuzioni riuscite, azioni bloccate e attese: un fallimento veloce non viene
+mai premiato come efficienza.
+
+```bash
+npm run benchmark:families
+```
+
+Il runner salva un report in `reports/workspace-benchmark-*.json`. Una futura
+iterazione di codice deve dichiarare il collo di bottiglia osservato, i moduli
+da modificare, la metrica attesa e i benchmark di regressione; una modifica e'
+promossa solo se passa training e holdout. Il contratto per un coding agent e'
+in [`agent-workspace/AGENTS.md`](agent-workspace/AGENTS.md).
+
+### Ciclo candidato → benchmark → promozione
+
+Il primo confine mutabile e' una **policy extension**: vero codice JavaScript
+che puo' sostituire una singola decisione, ma riceve soltanto un'osservazione
+serializzabile, la scelta baseline e la memoria dell'episodio. Non riceve
+filesystem, rete o un handle del gioco; il simulatore resta l'unico esecutore
+delle azioni. Questo consente di far generare al modello euristiche di
+precondizione, heatmap, esplorazione, pianificazione dell'energia e, in
+seguito, coordinamento, mantenendo il cambiamento verificabile.
+
+Una proposta ha i campi `id`, `bottleneck`, `module`, `rationale`,
+`expectedMetric` e `source`, dove `source` e' una sola funzione JavaScript.
+Per provarla senza alterare l'agente base:
+
+```bash
+npm run evaluate:workspace-candidate -- proposta.json
+```
+
+Il valutatore compila il candidato in un VM minimale, confronta baseline e
+candidato su scenari fissi e famiglie generate, divise in training e holdout,
+e salva obiettivi aggregati. Una proposta e' **promotable** solo se migliora
+fitness di training (copertura, score, robustezza o efficienza), non peggiora
+nessun training e non perde un successo precedente negli holdout.
+Il passo successivo collega a questo formato un coding-agent OpenCode con tool
+dichiarati per leggere contratti, trace e benchmark, senza dargli scrittura
+diretta sui moduli promossi.
+
+Quel ciclo e' disponibile con una singola iterazione controllata:
+
+```bash
+npm run evolve:workspace:opencode
+```
+
+### Revisioni modulari TypeScript
+
+Per evolvere oltre una singola decisione, il modello può inventare una nuova
+**capability** e proporre una revisione TypeScript completa. Non esiste una
+lista host di moduli cognitivi: il manifest espone soltanto una superficie di
+file modificabili. La revisione viene applicata esclusivamente a una copia temporanea di
+`src/`, valutata contro baseline, famiglie training e holdout, quindi eliminata.
+Il workspace reale non viene modificato né promosso dal modello.
+Ogni proposta, anche se respinta, viene salvata immutabilmente in
+`agent-workspace/capability-archive/` e fornita come lavoro precedente ai cicli
+successivi: il modello può riparare, combinare o riusare idee già esplorate.
+
+```bash
+MODULE_PATCH_MODELS=meta/llama-3.3-70b,qwen/qwen3.8-27b \
+MODULE_PATCH_ATTEMPTS=2 \
+npm run evolve:module-workspace
+```
+
+Per ispezionare una proposta JSON già disponibile senza chiamare un modello:
+
+```bash
+npm run evaluate:module-patch -- proposta-modulo.json
+```
+
+Seleziona soltanto l'episodio con la metrica peggiore, invia a OpenCode/LM Studio
+osservazioni, azioni, esiti e contratto di esecuzione, poi persiste proposta,
+valutazione e token in `reports/workspace-evolve-*.json`. Non classifica il
+problema e non suggerisce un modulo o un algoritmo: questa decisione appartiene
+al modello. Se tutti i benchmark riescono, registra un run `no-change` senza
+invocare il modello. Per ora un candidato
+`PROMOTABLE` resta un artefatto da ispezionare: la promozione nell'agente
+runtime sara' un comando separato e tracciabile, non un side effect del modello.
+
+Dopo aver ispezionato un report promuovi esplicitamente il candidato:
+
+```bash
+npm run promote:workspace-candidate -- reports/workspace-evolve-<id>.json
+```
+
+La proposta viene conservata immutabilmente in `agent-workspace/promoted/history/`
+ed entra in testa all'insieme ordinato `agent-workspace/promoted/active.json`: una
+nuova promozione ha precedenza, mentre i layer precedenti restano fallback e non
+vengono cancellati. Il successivo
+`npm run benchmark:workspace` carica solo questa policy promossa e ne mostra
+l'identificatore; un modello non ha alcun percorso diretto per eseguire la
+promozione.
+
+Quando la suite e' satura, il meta-loop puo' cercare autonomamente una nuova
+challenge, senza indicare all'agente come risolverla:
+
+```bash
+npm run discover:challenge:opencode
+```
+
+Per confrontare esplicitamente i modelli locali, l'ordine e il numero di tentativi
+sono configurabili. Ogni tentativo conserva nel report modello, uso token, modalità
+di decoding (`json_schema` oppure fallback `json_object`) e testo grezzo della
+risposta; non viene fermato da un successo precedente.
+
+```bash
+CHALLENGE_ATTEMPTS=2 \
+CHALLENGE_MODELS=meta/llama-3.3-70b,qwen/qwen3.8-27b \
+npm run discover:challenge:opencode
+```
+
+Un candidato entra in `scenarios/generated/` soltanto se il suo witness interno
+raggiunge score positivo e l'agente promosso non lo risolve. Il witness serve
+esclusivamente a escludere challenge impossibili; non viene incluso nel contesto
+del successivo coding agent.
+
+### Requisiti oltre gli scenari correnti
+
+Il backlog esplicito in [`requirements.v1.json`](agent-workspace/requirements.v1.json)
+separa un requisito ingegneristico da una mappa che lo rende misurabile. Le prime
+due capacita' sono validate; heatmap/frontier, replanning dinamico, coordinamento
+multi-agente e una euristica di navigazione appresa non vengono ancora richiesti
+al modello perché manca il rispettivo benchmark. Questo evita che un LLM produca
+codice “creativo” senza segnale sperimentale. Il prossimo incremento concreto è
+`partial-observation-frontier`: renderà necessario il modulo `exploration` e
+permetterà di confrontare heatmap e strategie alternative su seed holdout.
+
 ## Prima generazione LLM
 
 1. Copia `.env.example` in `.env`.

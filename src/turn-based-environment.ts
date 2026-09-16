@@ -106,6 +106,15 @@ export class TurnBasedEnvironment {
     return copy;
   }
 
+  /** Stable internal-state identity for deterministic search and validation. */
+  fingerprint(): string {
+    return JSON.stringify({
+      agent: this.agent, energy: this.energy, hasKey: this.hasKey,
+      parcels: [...this.parcels.values()].sort((a, b) => a.id.localeCompare(b.id)),
+      batteries: [...this.batteries].sort(), keys: [...this.keys].sort(), doors: [...this.doors].sort(),
+    });
+  }
+
   private move(direction: Direction): TurnResult {
     const movement = delta[direction];
     const target = { x: this.agent.x + movement.x, y: this.agent.y + movement.y };

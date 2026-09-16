@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "name": "partial-observation-backtrack-mirror",
+  "description": "Mirrored branch/backtracking holdout for heatmap exploration.",
+  "agent": { "id": "agent", "name": "backtrack-agent", "x": 2, "y": 1, "score": 0 },
+  "tiles": [
+    { "x": 2, "y": 1, "type": "2" },
+    { "x": 2, "y": 2, "type": "1" },
+    { "x": 1, "y": 1, "type": "1" },
+    { "x": 0, "y": 1, "type": "1" }
+  ],
+  "parcels": [{ "id": "parcel-1", "x": 0, "y": 1, "reward": 9 }]
+}

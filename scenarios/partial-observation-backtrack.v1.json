@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "name": "partial-observation-backtrack",
+  "description": "A locally observed branch first leads to a dead end. The agent must use visit memory to backtrack and discover the parcel on the other frontier.",
+  "agent": { "id": "agent", "name": "backtrack-agent", "x": 1, "y": 1, "score": 0 },
+  "tiles": [
+    { "x": 1, "y": 1, "type": "2" },
+    { "x": 1, "y": 2, "type": "1" },
+    { "x": 2, "y": 1, "type": "1" },
+    { "x": 3, "y": 1, "type": "1" }
+  ],
+  "parcels": [{ "id": "parcel-1", "x": 3, "y": 1, "reward": 9 }]
+}

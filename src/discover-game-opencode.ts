@@ -11,7 +11,7 @@ import {
   type GenericCodeCapability,
 } from "./generic-code-capability.js";
 import { GenericExplorer, type ExplorationResult } from "./generic-explorer.js";
-import { createOpenCodeCapabilityRunner } from "./opencode-capability-model.js";
+import { createOpenCodeCapabilityRunner, type OpenCodeCapabilityRunner } from "./opencode-capability-model.js";
 import { loadScenario } from "./scenario-loader.js";
 import { TurnBasedAdapter, decodeTurnBasedAction, type TurnBasedObservation } from "./turn-based-adapter.js";
 import { TurnBasedEnvironment } from "./turn-based-environment.js";
@@ -58,20 +58,23 @@ const curriculum = [
 const library = new GenericCapabilityLibrary(`capabilities/${runID}.json`);
 const reportPath = `reports/${runID}.json`;
 const episodes: DiscoveryEpisode[] = resume ? await loadCheckpoint(reportPath, runID) : [];
+let runner: OpenCodeCapabilityRunner | undefined;
 
 async function checkpoint(): Promise<void> {
   await mkdir(dirname(reportPath), { recursive: true });
   await writeFile(reportPath, `${JSON.stringify({
     runID, maximumSteps, maximumCodeAttempts, episodes,
     libraryPath: `capabilities/${runID}.json`, codeDirectory: `capabilities/generated/${runID}`,
+    ...(runner ? { usage: runner.usage(), usageScope: resume ? "partial: since resumed process started" : "complete" } : {}),
   }, null, 2)}\n`);
 }
 
 console.log(`[discovery] ${resume ? "resuming" : "starting fresh"} run '${runID}' with ${maximumSteps} actions per environment`);
-const runner = await createOpenCodeCapabilityRunner();
+const activeRunner = await createOpenCodeCapabilityRunner();
+runner = activeRunner;
 try {
-  const explorer = new GenericExplorer(runner.model);
-  const codeSynthesizer = new GenericCodeSynthesizer(runner.model);
+  const explorer = new GenericExplorer(activeRunner.model);
+  const codeSynthesizer = new GenericCodeSynthesizer(activeRunner.model);
   for (const filename of curriculum) {
     const { metadata, scenario } = await loadScenario(`${scenariosDirectory}/${filename}`);
     if (episodes.some((episode) => episode.scenario === metadata.name)) {
@@ -116,7 +119,7 @@ try {
     await checkpoint();
   }
 } finally {
-  runner.close();
+  activeRunner.close();
 }
 
 console.log(`\n[discovery] complete. Checkpoint: ${reportPath}`);

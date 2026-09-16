@@ -1,0 +1,8 @@
+{
+  "runID": "module-evolve-1789469392414",
+  "attempt": 1,
+  "model": "meta/llama-3.3-70b",
+  "createdAt": "backfilled",
+  "accepted": false,
+  "reason": "[\n  {\n    \"origin\": \"string\",\n    \"code\": \"invalid_format\",\n    \"format\": \"regex\",\n    \"pattern\": \"/^[a-z][a-z0-9-]{2,80}$/\",\n    \"path\": [\n      \"module\"\n    ],\n    \"message\": \"Invalid string: must match pattern /^[a-z][a-z0-9-]{2,80}$/\"\n  }\n]"
+}

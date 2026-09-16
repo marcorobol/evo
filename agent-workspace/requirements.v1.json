@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "purpose": "Manual research requirements that extend the agent beyond solving the current fixed maps. A requirement may be selected only after its named benchmark exists.",
+  "requirements": [
+    {
+      "id": "key-prerequisite-planning",
+      "capability": "access-prerequisite",
+      "status": "validated",
+      "intent": "Identify and collect an access resource before committing to a route blocked by a gate.",
+      "benchmark": "key-door-delivery",
+      "metric": "positive delivery score without holdout regression"
+    },
+    {
+      "id": "resource-aware-recharge",
+      "capability": "resource-budget",
+      "status": "validated",
+      "intent": "Estimate route energy and recharge before a parcel route becomes infeasible.",
+      "benchmark": "battery-return",
+      "metric": "positive delivery score without holdout regression"
+    },
+    {
+      "id": "heatmap-frontier-exploration",
+      "capability": "frontier-state-model",
+      "status": "ready",
+      "intent": "Use visit counts and frontiers to reveal tasks absent from the initial observation.",
+      "benchmark": "partial-observation-frontier and partial-observation-backtrack, each with mirror holdout",
+      "metric": "task discovery rate, dead-end recovery, and steps-to-first-delivery on unseen seeds"
+    },
+    {
+      "id": "cost-aware-dynamic-navigation",
+      "capability": "dynamic-route-model",
+      "status": "blocked-by-benchmark",
+      "intent": "Replan around changing obstacles and compare A*, weighted A*, and learned cost estimates.",
+      "benchmark": "dynamic-obstacle-routing (to be added)",
+      "metric": "success rate, path cost, and replanning latency on holdout seeds"
+    },
+    {
+      "id": "multi-agent-task-reservation",
+      "capability": "shared-intention-model",
+      "status": "blocked-by-benchmark",
+      "intent": "Coordinate task claims, prevent duplicate pickups, and balance workload among agents.",
+      "benchmark": "multi-agent-competing-parcels (to be added)",
+      "metric": "team reward, duplicate-work rate, and fairness on holdout seeds"
+    },
+    {
+      "id": "learned-navigation-heuristic",
+      "capability": "trace-derived-cost-model",
+      "status": "research-design-needed",
+      "intent": "Train or adapt a navigation cost heuristic from traces while retaining deterministic safety fallback.",
+      "benchmark": "seeded train-test routing suite (to be added)",
+      "metric": "holdout success must match A* fallback; compare path cost and decisions per second"
+    }
+  ]
+}

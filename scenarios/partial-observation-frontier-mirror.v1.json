@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "name": "partial-observation-frontier-mirror",
+  "description": "Mirrored local-view frontier task used only as an exploration holdout.",
+  "agent": { "id": "agent", "name": "frontier-agent", "x": 3, "y": 0, "score": 0 },
+  "tiles": [
+    { "x": 0, "y": 0, "type": "1" },
+    { "x": 1, "y": 0, "type": "1" },
+    { "x": 2, "y": 0, "type": "1" },
+    { "x": 3, "y": 0, "type": "2" }
+  ],
+  "parcels": [{ "id": "parcel-1", "x": 0, "y": 0, "reward": 8 }]
+}

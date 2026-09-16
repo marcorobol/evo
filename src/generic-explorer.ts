@@ -4,7 +4,7 @@ import { genericCapabilitySchema, parseGenericCapability, type GenericCapability
 import type { EnvironmentManifest, ExperimentEnvironment } from "./environment-contract.js";
 
 const decisionSchema = z.object({
-  action: z.record(z.string(), z.unknown()),
+  action: z.union([z.record(z.string(), z.unknown()), z.string()]).transform(normalizeAction),
   // Local reasoning models may be overly verbose even when asked for a short
   // hypothesis. Preserve the decision, then compact only the stored trace.
   hypothesis: z.string().min(1).max(4_000),
@@ -39,6 +39,7 @@ export class GenericExplorer {
     environment: ExperimentEnvironment<Action, Observation>,
     decodeAction: (action: Record<string, unknown>) => Action | undefined,
     maximumSteps = 12,
+    priorKnowledge: string[] = [],
   ): Promise<ExplorationResult<Observation>> {
     const initialObservation = environment.observe();
     const steps: ExplorationStep<Observation>[] = [];
@@ -47,11 +48,24 @@ export class GenericExplorer {
       const decision = await this.nextDecision(
         [
           "You are experimentally discovering an unknown environment.",
-          "Choose exactly one next action from the manifest and state a falsifiable hypothesis in one sentence (at most 240 characters).",
+          "Choose exactly one next action from the manifest and state a falsifiable hypothesis in one sentence (at most 240 characters). action must be a JSON object, never a string: use {kind:'pickup'} or {kind:'move', direction:'right'}, not 'pickup' or 'right'.",
           "Do not assume meanings for identifiers or tile types; infer rules only from observations, events, and score changes.",
           "Return JSON only with action and hypothesis. Do not call tools.",
         ].join(" "),
-        JSON.stringify({ manifest: environment.manifest, initialObservation, history: steps, currentObservation: environment.observe(), outcome: environment.outcome() }),
+        JSON.stringify({
+          manifest: environment.manifest,
+          // A compact, explicit evidence ledger is enough for one-step
+          // experimentation. Sending every historic full observation made the
+          // prompt grow quadratically while adding no new evidence.
+          initialObservation: index === 0 ? initialObservation : undefined,
+          evidence: steps.map(compactStep),
+          // Descriptions are intentionally compact: executable capabilities
+          // are tried by the runtime before asking the model, while this gives
+          // the planner only their verified applicability as a hint.
+          priorKnowledge,
+          currentObservation: environment.observe(),
+          outcome: environment.outcome(),
+        }),
       );
       const hypothesis = compactHypothesis(decision.hypothesis);
       const decoded = decodeAction(decision.action);
@@ -96,7 +110,27 @@ export class GenericExplorer {
   }
 }
 
+function compactStep<Observation>(step: ExplorationStep<Observation>) {
+  return {
+    action: step.action,
+    accepted: step.accepted,
+    events: step.events.map(({ type, detail }) => ({ type, detail })),
+    score: step.outcome.score,
+    achieved: step.outcome.achieved,
+  };
+}
+
 function compactHypothesis(value: string): string {
   const normalized = value.replace(/\s+/g, " ").trim();
   return normalized.length <= 500 ? normalized : `${normalized.slice(0, 497)}...`;
+}
+
+function normalizeAction(value: Record<string, unknown> | string): Record<string, unknown> {
+  if (typeof value !== "string") return value;
+  const text = value.trim().toLowerCase();
+  if (text === "pickup" || text === "putdown") return { kind: text };
+  if (text === "wait") return { kind: "wait", reason: "Model requested wait." };
+  const direction = text.match(/^(?:move\s+)?(up|right|down|left)$/)?.[1];
+  if (direction) return { kind: "move", direction };
+  return { kind: "invalid", raw: value };
 }
