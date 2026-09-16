@@ -2,7 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { evaluateModulePatch, modulePatchProposalSchema } from "./agent-workspace/module-patch.js";
 import type { NamedScenario } from "./agent-workspace/candidate-evaluator.js";
-import { loadActivePolicies } from "./agent-workspace/promoted-policy.js";
+import { loadDiscoveredCapabilities } from "./agent-workspace/capability-store.js";
 import { builtInScenarioFamilies } from "./agent-workspace/scenario-families.js";
 import { loadScenario } from "./scenario-loader.js";
 
@@ -17,10 +17,10 @@ async function scenario(file: string, observationRadius?: number): Promise<Named
 const families = builtInScenarioFamilies();
 const training = [...await Promise.all([scenario("key-door-delivery"), scenario("battery-return"), scenario("partial-observation-frontier", 1), scenario("partial-observation-backtrack", 1)]), ...families.flatMap((family) => family.training)];
 const holdout = [...await Promise.all([scenario("simple-delivery"), scenario("two-parcels"), scenario("detour-delivery"), scenario("partial-observation-frontier-mirror", 1), scenario("partial-observation-backtrack-mirror", 1)]), ...families.flatMap((family) => family.holdout)];
-const active = await loadActivePolicies();
-const evaluation = await evaluateModulePatch(proposal, training, holdout, { baseExtensions: active.map((policy) => policy.extension), baseModules: active.map((policy) => `promoted:${policy.proposal.id}`) });
+const active = await loadDiscoveredCapabilities();
+const evaluation = await evaluateModulePatch(proposal, training, holdout, { baseCapabilities: active });
 await mkdir("reports", { recursive: true });
 const report = `reports/module-patch-${proposal.id}-${Date.now()}.json`;
-await writeFile(report, `${JSON.stringify({ ...evaluation, activePolicies: active.map((policy) => policy.proposal.id) }, null, 2)}\n`);
+await writeFile(report, `${JSON.stringify({ ...evaluation, activeCapabilities: active.map((capability) => capability.descriptor.id) }, null, 2)}\n`);
 console.log(`[module-patch] ${proposal.id}: ${evaluation.accepted ? "PROMOTABLE" : "rejected"}; ${evaluation.reason}`);
 console.log(`[module-patch] report: ${report}`);

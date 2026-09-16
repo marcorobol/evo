@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { z } from "zod";
 import { generateStructuredJson, StructuredJsonError, type StructuredUsage } from "./openai-compatible-structured.js";
-import { loadActivePolicies } from "./agent-workspace/promoted-policy.js";
+import { loadDiscoveredCapabilities } from "./agent-workspace/capability-store.js";
 import { createEvolvingAgent } from "./agent-workspace/evolving-agent.js";
 import { runBenchmark } from "./agent-workspace/benchmark-runner.js";
 import { parseScenario, scenarioSchema } from "./scenario-loader.js";
@@ -16,7 +16,7 @@ const runID = process.env.CHALLENGE_RUN_ID ?? `challenge-discovery-${Date.now()}
 const proposalSchema = z.object({
   scenario: scenarioSchema,
 });
-const active = await loadActivePolicies();
+const active = await loadDiscoveredCapabilities();
 const outcomes: Array<{ attempt: number; model: string; name?: string; accepted: boolean; reason: string; baseline?: { score: number; achieved: boolean }; witness?: { score: number; acceptedActions: number }; raw?: { mode: string; text: string } }> = [];
 const usage: StructuredUsage = { input: 0, output: 0, reasoning: 0 };
 let feedback: string | undefined;
@@ -26,7 +26,7 @@ for (let attempt = 1; attempt <= attempts; attempt += 1) {
   const model = models[(attempt - 1) % models.length]!;
     try {
       console.log(`[challenge-discovery] requesting candidate ${attempt}/${attempts} from OpenAI-compatible/${model} with JSON Schema`);
-      const response = await generateStructuredJson({ model, system: system(), prompt: prompt(active.map((policy) => ({ id: policy.proposal.id, module: policy.proposal.module })), feedback), schemaName: "challenge_proposal", schema: challengeOutputSchema() });
+      const response = await generateStructuredJson({ model, system: system(), prompt: prompt(active.map((capability) => ({ id: capability.descriptor.id, purpose: capability.descriptor.purpose })), feedback), schemaName: "challenge_proposal", schema: challengeOutputSchema() });
       usage.input += response.usage.input;
       usage.output += response.usage.output;
       usage.reasoning += response.usage.reasoning;
@@ -40,7 +40,7 @@ for (let attempt = 1; attempt <= attempts; attempt += 1) {
         feedback = reason;
         continue;
       }
-      const baseline = runBenchmark(metadata.name, scenario, createEvolvingAgent({ extensions: active.map((policy) => policy.extension), extensionModules: active.map((policy) => `promoted:${policy.proposal.id}`) }));
+      const baseline = runBenchmark(metadata.name, scenario, createEvolvingAgent({ capabilities: active }));
       if (baseline.achieved) {
         const reason = "Current promoted agent already solves this scenario; it is not a novel challenge.";
         outcomes.push({ attempt, model, name: metadata.name, accepted: false, reason, baseline, witness, raw: { mode: response.mode, text: response.rawText } });
@@ -62,7 +62,7 @@ for (let attempt = 1; attempt <= attempts; attempt += 1) {
     }
   }
 await mkdir("reports", { recursive: true });
-const report = { runID, models, activePolicies: active.map((policy) => policy.proposal.id), outcomes, usage: { requests: outcomes.length, ...usage } };
+const report = { runID, models, activeCapabilities: active.map((capability) => capability.descriptor.id), outcomes, usage: { requests: outcomes.length, ...usage } };
 await writeFile(`reports/${runID}.json`, `${JSON.stringify(report, null, 2)}\n`);
 console.log(`[challenge-discovery] report: reports/${runID}.json`);
 
@@ -77,10 +77,10 @@ function system(): string {
   ].join(" ");
 }
 
-function prompt(policies: Array<{ id: string; module: string }>, previousFeedback: string | undefined): string {
+function prompt(capabilities: Array<{ id: string; purpose: string }>, previousFeedback: string | undefined): string {
   return JSON.stringify({
     scenarioSchema: { version: 1, fields: ["version", "name", "description", "agent", "tiles", "parcels", "batteries", "keys", "doors", "initialEnergy?", "energyCost?"] },
-    promotedPolicies: policies,
+    promotedCapabilities: capabilities,
     ...(previousFeedback ? { previousValidationFeedback: previousFeedback } : {}),
   });
 }

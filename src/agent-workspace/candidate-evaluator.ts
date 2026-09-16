@@ -4,6 +4,7 @@ import { compileCandidate, type CandidateProposal } from "./candidate-policy.js"
 import type { BenchmarkEpisode, PolicyExtension } from "./contracts.js";
 import { createEvolvingAgent } from "./evolving-agent.js";
 import { fitness, improves, type Fitness } from "./fitness.js";
+import { policyCapability, type DecisionCapability } from "./capability-registry.js";
 
 export interface NamedScenario {
   name: string;
@@ -26,7 +27,10 @@ export interface CandidateEvaluation {
 
 export interface EvaluationOptions {
   /** Previously promoted behavior is part of the baseline for later evolution. */
+  baseCapabilities?: ReadonlyArray<DecisionCapability>;
+  /** @deprecated Compatibility with policy-layer experiments. */
   baseExtensions?: ReadonlyArray<PolicyExtension>;
+  /** @deprecated Compatibility with policy-layer experiments. */
   baseModules?: ReadonlyArray<string>;
 }
 
@@ -36,10 +40,12 @@ export interface EvaluationOptions {
  * and must retain every previously solved holdout task.
  */
 export function evaluateCandidate(proposal: CandidateProposal, training: NamedScenario[], holdout: NamedScenario[], options: EvaluationOptions = {}): CandidateEvaluation {
-  const baselineAgent = () => createEvolvingAgent({ extensions: options.baseExtensions, extensionModules: options.baseModules });
+  const baseCapabilities = options.baseCapabilities ?? (options.baseExtensions ?? []).map((extension, index) => policyCapability(options.baseModules?.[index] ?? `promoted:${index + 1}`, extension));
+  const baselineAgent = () => createEvolvingAgent({ capabilities: baseCapabilities });
   const baseline = [...training, ...holdout].map((item) => runNamedScenario(item, baselineAgent()));
   const extension = compileCandidate(proposal);
-  const candidate = (items: NamedScenario[]) => items.map((item) => runNamedScenario(item, createEvolvingAgent({ extensions: [extension, ...(options.baseExtensions ?? [])], extensionModules: [`candidate:${proposal.id}`, ...(options.baseModules ?? [])] })));
+  const candidateCapability = policyCapability(`candidate:${proposal.id}`, extension);
+  const candidate = (items: NamedScenario[]) => items.map((item) => runNamedScenario(item, createEvolvingAgent({ capabilities: [candidateCapability, ...baseCapabilities] })));
   const trainingResult = candidate(training);
   const holdoutResult = candidate(holdout);
   const baseTraining = baseline.slice(0, training.length);

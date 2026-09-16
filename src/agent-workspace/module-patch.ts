@@ -6,6 +6,7 @@ import { fitness, improves, type Fitness } from "./fitness.js";
 import { runNamedScenario, type NamedScenario } from "./candidate-evaluator.js";
 import type { BenchmarkEpisode } from "./contracts.js";
 import type { PolicyExtension } from "./contracts.js";
+import type { DecisionCapability } from "./capability-registry.js";
 
 const targetFiles = ["src/agent-workspace/navigation.ts", "src/agent-workspace/task-selection.ts", "src/agent-workspace/memory.ts", "src/agent-workspace/coordination.ts", "src/agent-workspace/exploration.ts", "src/agent-workspace/evolving-agent.ts"] as const;
 
@@ -30,6 +31,8 @@ export interface ModulePatchEvaluation {
   reason: string;
 }
 export interface ModulePatchEvaluationOptions {
+  baseCapabilities?: ReadonlyArray<DecisionCapability>;
+  /** @deprecated Compatibility with policy-layer experiments. */
   baseExtensions?: ReadonlyArray<PolicyExtension>;
   baseModules?: ReadonlyArray<string>;
 }
@@ -54,7 +57,9 @@ export async function evaluateModulePatch(proposal: ModulePatchProposal, trainin
 
     const baselineAgent = await import(pathToFileURL(join(resolve(baselineRoot), "agent-workspace/evolving-agent.ts")).href);
     const candidateAgent = await import(pathToFileURL(join(resolve(candidateRoot), "agent-workspace/evolving-agent.ts")).href);
-    const agentOptions = { extensions: options.baseExtensions, extensionModules: options.baseModules };
+    const agentOptions = options.baseCapabilities
+      ? { capabilities: options.baseCapabilities }
+      : { extensions: options.baseExtensions, extensionModules: options.baseModules };
     const baseline = [...training, ...holdout].map((item) => runNamedScenario(item, baselineAgent.createEvolvingAgent(agentOptions)));
     const trainingResult = training.map((item) => runNamedScenario(item, candidateAgent.createEvolvingAgent(agentOptions)));
     const holdoutResult = holdout.map((item) => runNamedScenario(item, candidateAgent.createEvolvingAgent(agentOptions)));

@@ -7,5 +7,6 @@ capabilities/generic-library.json
 capabilities/discovery-*.json
 capabilities/generated/
 agent-workspace/capability-archive/
+agent-workspace/discovered-capabilities/
 work/repos/
 .module-sandbox/

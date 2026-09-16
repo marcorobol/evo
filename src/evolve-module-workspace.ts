@@ -4,7 +4,7 @@ import { createEvolvingAgent } from "./agent-workspace/evolving-agent.js";
 import { archiveCapability, findSimilarCapability, loadCapabilityArchive, type ArchivedCapability } from "./agent-workspace/capability-archive.js";
 import { evaluateModulePatch, modulePatchManifest, modulePatchProposalSchema } from "./agent-workspace/module-patch.js";
 import { runNamedScenario, type NamedScenario } from "./agent-workspace/candidate-evaluator.js";
-import { loadActivePolicies } from "./agent-workspace/promoted-policy.js";
+import { loadDiscoveredCapabilities } from "./agent-workspace/capability-store.js";
 import { builtInScenarioFamilies } from "./agent-workspace/scenario-families.js";
 import { generateStructuredJson, StructuredJsonError, type StructuredUsage } from "./openai-compatible-structured.js";
 import { loadScenario } from "./scenario-loader.js";
@@ -18,10 +18,10 @@ const root = fileURLToPath(new URL("../scenarios/", import.meta.url));
 const families = builtInScenarioFamilies();
 const training = [...await Promise.all([scenario("key-door-delivery"), scenario("battery-return"), scenario("partial-observation-frontier", 1), scenario("partial-observation-backtrack", 1)]), ...families.flatMap((family) => family.training)];
 const holdout = [...await Promise.all([scenario("simple-delivery"), scenario("two-parcels"), scenario("detour-delivery"), scenario("partial-observation-frontier-mirror", 1), scenario("partial-observation-backtrack-mirror", 1)]), ...families.flatMap((family) => family.holdout)];
-const active = fromScratch ? [] : await loadActivePolicies();
+const active = fromScratch ? [] : await loadDiscoveredCapabilities();
 const priorCapabilities = await loadCapabilityArchive();
 const knownCapabilities: ArchivedCapability[] = [...priorCapabilities];
-const agentOptions = { extensions: active.map((policy) => policy.extension), extensionModules: active.map((policy) => `promoted:${policy.proposal.id}`) };
+const agentOptions = { capabilities: active };
 const baseline = [...training, ...holdout].map((item) => runNamedScenario(item, createEvolvingAgent(agentOptions)));
 const failures = baseline.filter((episode) => !episode.achieved);
 const usage: StructuredUsage = { input: 0, output: 0, reasoning: 0 };
@@ -70,7 +70,7 @@ for (let attempt = 1; failures.length && attempt <= attempts; attempt += 1) {
   }
 }
 await mkdir("reports", { recursive: true });
-await writeFile(`reports/${runID}.json`, `${JSON.stringify({ runID, fromScratch, models, activePolicies: active.map((policy) => policy.proposal.id), priorCapabilityCount: priorCapabilities.length, archivePaths, families: families.map(({ id }) => id), baseline, proposals, usage }, null, 2)}\n`);
+await writeFile(`reports/${runID}.json`, `${JSON.stringify({ runID, fromScratch, models, activeCapabilities: active.map((capability) => capability.descriptor.id), priorCapabilityCount: priorCapabilities.length, archivePaths, families: families.map(({ id }) => id), baseline, proposals, usage }, null, 2)}\n`);
 console.log(`[module-evolve] report: reports/${runID}.json`);
 
 async function scenario(file: string, observationRadius?: number): Promise<NamedScenario> { const loaded = await loadScenario(`${root}/${file}.v1.json`); return { name: loaded.metadata.name, scenario: loaded.scenario, ...(observationRadius === undefined ? {} : { observationRadius }) }; }

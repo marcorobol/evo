@@ -52,10 +52,7 @@ gateway includono anche `llama-3.3-70b`, `qwen3-coder-next` e `gpt-4o`.
 | Modello | `OPENAI_BASE_URL`, `OPENAI_API_KEY`, `OPENAI_MODEL` | gateway UniTn, chiave vuota, `qwen3.8-27b` |
 | OpenCode | `OPENCODE_PROVIDER`, `OPENCODE_PLANNER_TIMEOUT_MS`, `OPENCODE_HEARTBEAT_MS`, `OPENCODE_DEBUG_PROMPTS` | `unitn-litellm`, `180000`, `5000`, `0` |
 | Gioco live | `DELIVEROO_URL`, `DELIVEROO_NAME`, `DELIVEROO_TOKEN`, `DELIVEROO_STEP_SETTLE_MS`, `LIVE_ACTION_INTERVAL_MS`, `LIVE_MAX_STEPS`, `DELIVEROO_READY_TIMEOUT_MS` | vedi `.env.example` |
-| Capability | `CAPABILITY_GOAL`, `MAX_REPAIR_ATTEMPTS`, `SOURCE_CAPABILITY`, `CAPABILITY_ARTIFACT_MODEL` | scenario di consegna, `2`, capability chiave-porta, modello principale |
-| Discovery | `DISCOVERY_MAX_STEPS`, `DISCOVERY_CODE_ATTEMPTS`, `DISCOVERY_RUN_ID`, `DISCOVERY_RESUME` | `20`, `3`, ID timestamp, `0` |
-| Varianti | `EVOLVE_GENERATIONS`, `EVOLVE_SEED`, `EVOLVE_MAX_STEPS`, `EVOLVE_CODE_ATTEMPTS`, `EVOLVE_RUN_ID` | `10`, `1`, `20`, `3`, ID timestamp |
-| Workspace | `WORKSPACE_CODE_ATTEMPTS`, `WORKSPACE_EVOLVE_RUN_ID` | `2`, ID timestamp |
+| Capability artifact | `CAPABILITY_ARTIFACT_MODEL`, `CAPABILITY_ARTIFACT_RUN_ID` | modello principale, ID timestamp |
 | Patch modulari | `MODULE_PATCH_ATTEMPTS`, `MODULE_PATCH_MODELS`, `MODULE_PATCH_RUN_ID`, `EVOLUTION_FROM_SCRATCH` | `2`, Llama poi Qwen, ID timestamp, `0` |
 | Challenge | `CHALLENGE_ATTEMPTS`, `CHALLENGE_MODELS`, `CHALLENGE_RUN_ID` | `2`, Llama poi Qwen, ID timestamp |
 
@@ -70,10 +67,12 @@ gateway includono anche `llama-3.3-70b`, `qwen3-coder-next` e `gpt-4o`.
 | Eseguire demo locale | `npm run start` | Corrente |
 | Eseguire benchmark | `evo benchmark all` | Corrente |
 | Generare capability diretta | `evo artifact [--model ID]` | Corrente |
+| Promuovere un artifact validato | `evo promote <artifact-run-id>` | Corrente |
+| Ciclo automatico controllato | `evo evolve --iterations N [--model ID]` | Corrente |
 | Evolvere patch TypeScript | `evo module [--attempts N] [--models ID,ID] [--from-scratch]` | Corrente sperimentale |
 | Cercare nuove challenge | `evo challenge [--attempts N] [--models ID,ID]` | Corrente sperimentale |
 | Consultare i report | `evo list`, `evo show <run-id>` | Corrente |
-| Gioco Deliveroo.js live | `npm run start:deliveroo`, `npm run play:live:evolving`, `npm run explore:live:opencode` | Integrazione/demo |
+| Gioco Deliveroo.js live | `npm run start:deliveroo`, `npm run play:live:evolving` | Integrazione/demo |
 | Verificare LiteLLM/OpenCode | `npm run probe:opencode:qwen`, `npm run reproduce:opencode:plan` | Diagnostica |
 
 Gli script npm rimangono disponibili sia per automazione sia per riprodurre
@@ -83,22 +82,10 @@ esperimenti. I flussi moderni sono:
 | --- | --- | --- |
 | `benchmark:workspace`, `benchmark:families` | `evo benchmark workspace`, `evo benchmark families` | Corrente |
 | `evolve:artifact` | `evo artifact` | Corrente |
-| `evolve:module-workspace`, `evaluate:module-patch` | `evo module`; valutazione manuale con script | Corrente sperimentale |
+| `evolve:module-workspace` | `evo module`; valutazione manuale con `bun run src/evaluate-module-patch.ts` | Corrente sperimentale |
 | `discover:challenge:opencode` | `evo challenge` | Corrente sperimentale |
-| `start`, `start:deliveroo`, `play:live:evolving`, `explore:live:opencode` | — | Demo/integration |
+| `start`, `start:deliveroo`, `play:live:evolving` | — | Demo/integration |
 | `probe:opencode`, `probe:opencode:qwen`, `reproduce:opencode:plan` | — | Diagnostica |
-
-I seguenti script sono **deprecati**: restano eseguibili per riproducibilita',
-ma non devono essere la base di nuovi esperimenti.
-
-| Script npm deprecati | Sostituzione |
-| --- | --- |
-| `generate:capability`, `generate:code-capability`, `generalize:capability`, `reuse:capability` | `evo artifact` |
-| `run:curriculum`, `evolve:curriculum` | `evo benchmark all` + `evo artifact` |
-| `evolve:generic`, `evolve:generic-curriculum`, `evolve:generic:opencode`, `explore:generic:opencode`, `synthesize:generic:opencode`, `evaluate:generic:opencode` | `evo artifact` oppure `evo module` |
-| `discover:game:opencode`, `evolve:variants:opencode` | `evo benchmark`, `evo artifact`, `evo challenge` |
-| `evolve:workspace:opencode`, `evaluate:workspace-candidate`, `promote:workspace-candidate` | percorso artifact/registry; mantenuti per le policy extension storiche |
-| `archive:capabilities` | solo migrazione/backfill di archivi storici |
 
 ## CLI sperimentale: `evo`
 
@@ -109,53 +96,10 @@ link, gli stessi comandi si eseguono come `npm run cli -- <comando>`.
 ```bash
 evo help
 evo list
-evo show discovery-<id>
+evo show <run-id>
 evo benchmark all
 evo artifact
 ```
-
-### Deprecato: `evo new`
-
-```bash
-evo new
-DISCOVERY_MAX_STEPS=30 DISCOVERY_CODE_ATTEMPTS=3 evo new baseline-30
-```
-
-`evo new` crea una sessione `discovery-<timestamp>` ed esegue una volta i sette
-scenari fissi: consegna semplice, porta/chiave, variante speculare, doppia
-consegna, due pacchi, batteria e detour. E' il benchmark riproducibile: per
-ogni episodio registra esplorazione, capability JSON, codice candidato e
-validazione. Per nuovi esperimenti usa `evo benchmark all`, poi `evo artifact`.
-
-### Deprecato: `evo evolve`
-
-```bash
-evo evolve --generations 10 --seed 42
-```
-
-La prima famiglia disponibile e' `battery-return`. Ogni generazione crea una
-variante deterministica diversa dal seed (direzione, distanze, batteria e
-budget energetico). Prima di chiedere al modello, il runtime tenta le
-capability in codice gia' promosse: una capability valida risolve direttamente
-la variante senza una nuova richiesta LLM. Se nessuna si applica, l'agente
-esplora e sintetizza codice soltanto dopo una traccia riuscita, poi lo testa su
-tre seed hold-out mai visti. Il codice viene promosso soltanto se supera
-training e tutti gli hold-out. L'output e' una sessione
-`evolve-battery-return-<timestamp>`. Per nuovi esperimenti usa `evo artifact`
-oppure `evo module`.
-
-### Report e comandi legacy
-
-```bash
-evo show <run-id>
-evo resume discovery-<id>
-evo delete <run-id>          # anteprima
-evo delete <run-id> --yes    # conferma la rimozione
-```
-
-`resume` completa esclusivamente una discovery interrotta e conserva i budget
-registrati nel checkpoint. Le evoluzioni sono immutabili in questa prima
-versione. `evo delete` rimuove soltanto artefatti delle sessioni storiche.
 
 ### Metriche e token
 
@@ -202,7 +146,7 @@ da modificare, la metrica attesa e i benchmark di regressione; una modifica e'
 promossa solo se passa training e holdout. Il contratto per un coding agent e'
 in [`agent-workspace/AGENTS.md`](agent-workspace/AGENTS.md).
 
-### Ciclo candidato → benchmark → promozione
+### Capability artifact → benchmark
 
 Il primo confine mutabile e' una **capability artifact**: vero codice JavaScript
 che puo' sostituire una singola decisione, ma riceve soltanto un'osservazione
@@ -212,37 +156,38 @@ delle azioni. Questo consente di far generare al modello euristiche di
 precondizione, esplorazione, pianificazione dell'energia o qualsiasi altra
 strategia motivata dai trace, mantenendo il cambiamento verificabile.
 
-Una proposta storica di policy extension ha i campi `id`, `bottleneck`,
-`module`, `rationale`, `expectedMetric` e `source`, dove `source` e' una sola
-funzione JavaScript. Per provarla senza alterare l'agente base:
-
-```bash
-npm run evaluate:workspace-candidate -- proposta.json
-```
-
 Il percorso corrente per le capability dirette usa il contratto piu' stretto
 `id`, `purpose`, `activation` e `source`; `source` deve essere un'unica arrow
 function auto-contenuta e puo' essere agganciata solo allo hook `decision`.
 Per generarne una e valutarla contro training e holdout:
 
 ```bash
-npm run evolve:artifact
+evo artifact
 ```
 
 Il valutatore compila il candidato in un VM minimale, confronta baseline e
 candidato su scenari fissi e famiglie generate, divise in training e holdout,
 e salva obiettivi aggregati. Una proposta e' **promotable** solo se migliora
-fitness di training (copertura, score, robustezza o efficienza), non peggiora
-nessun training e non perde un successo precedente negli holdout.
-Il passo successivo collega a questo formato un coding-agent OpenCode con tool
-dichiarati per leggere contratti, trace e benchmark, senza dargli scrittura
-diretta sui moduli promossi.
+fitness di training senza regressioni in training o holdout.
 
-Quel ciclo e' disponibile con una singola iterazione controllata:
+Un artifact valutato positivamente resta soltanto **promotable**: l'attivazione
+e' una decisione esplicita dell'host. Per attivarlo nel registry persistente,
+che viene caricato dai benchmark e dalle valutazioni successive:
 
 ```bash
-npm run evolve:workspace:opencode
+evo promote artifact-evolve-<timestamp>
 ```
+
+Per automatizzare il ciclo senza promuovere proposte non validate:
+
+```bash
+evo evolve --iterations 10
+```
+
+Ogni iterazione archivia sempre la proposta e il trace di valutazione; promuove
+solo un miglioramento stretto e, dopo la promozione, rilancia i benchmark
+workspace e delle famiglie. Il riepilogo del ciclo e' un report
+`artifact-evolution-*.json` consultabile con `evo show`.
 
 ### Revisioni modulari TypeScript
 
@@ -265,31 +210,8 @@ npm run evolve:module-workspace
 Per ispezionare una proposta JSON già disponibile senza chiamare un modello:
 
 ```bash
-npm run evaluate:module-patch -- proposta-modulo.json
+bun run src/evaluate-module-patch.ts proposta-modulo.json
 ```
-
-Seleziona soltanto l'episodio con la metrica peggiore, invia a OpenCode/LiteLLM
-osservazioni, azioni, esiti e contratto di esecuzione, poi persiste proposta,
-valutazione e token in `reports/workspace-evolve-*.json`. Non classifica il
-problema e non suggerisce un modulo o un algoritmo: questa decisione appartiene
-al modello. Se tutti i benchmark riescono, registra un run `no-change` senza
-invocare il modello. Per ora un candidato
-`PROMOTABLE` resta un artefatto da ispezionare: la promozione nell'agente
-runtime sara' un comando separato e tracciabile, non un side effect del modello.
-
-Dopo aver ispezionato un report promuovi esplicitamente il candidato:
-
-```bash
-npm run promote:workspace-candidate -- reports/workspace-evolve-<id>.json
-```
-
-La proposta viene conservata immutabilmente in `agent-workspace/promoted/history/`
-ed entra in testa all'insieme ordinato `agent-workspace/promoted/active.json`: una
-nuova promozione ha precedenza, mentre i layer precedenti restano fallback e non
-vengono cancellati. Il successivo
-`npm run benchmark:workspace` carica solo questa policy promossa e ne mostra
-l'identificatore; un modello non ha alcun percorso diretto per eseguire la
-promozione.
 
 Quando la suite e' satura, il meta-loop puo' cercare autonomamente una nuova
 challenge, senza indicare all'agente come risolverla:
@@ -325,73 +247,6 @@ codice “creativo” senza segnale sperimentale. Il prossimo incremento concret
 `partial-observation-frontier`: renderà necessario il modulo `exploration` e
 permetterà di confrontare heatmap e strategie alternative su seed holdout.
 
-## Prima generazione LLM
-
-1. Copia `.env.example` in `.env`.
-2. Configura il gateway UniTn LiteLLM come descritto in
-   [Configurazione](#configurazione). La chiave resta in `.env`, mai in scenari
-   o codice.
-3. Esegui `npm run generate:capability`.
-
-Il generatore stampa una proposta JSON e il suo risultato di validazione. Una
-proposta non valida termina con codice `2` e non modifica l'episodio originale.
-Le proposte valide entrano in `capabilities/library.json`, con le metriche di
-fitness necessarie per selezione e riuso.
-
-Per generare una capability procedurale, esegui:
-
-```bash
-npm run generate:code-capability
-```
-
-La procedura e' una funzione JavaScript compatibile con TypeScript che restituisce
-un piano a partire dalle credenze. Viene controllata sintatticamente, eseguita in
-un contesto VM minimale e poi validata nell'ambiente turn-based. Questo isolamento
-e' sperimentale e non e' una frontiera di sicurezza per codice ostile.
-
-Per selezionare e riusare la capability piu' pertinente nello scenario corrente:
-
-```bash
-npm run reuse:capability
-```
-
-Il riuso e' sempre rivalidato; solo un'esecuzione valida incrementa il contatore
-`uses` nell'archivio.
-
-## Curriculum sperimentale
-
-Gli scenari versionati includono consegna diretta, double-delivery, chiave/porta,
-batteria, due pacchi e detour attorno a un muro. Esegui:
-
-```bash
-npm run run:curriculum
-```
-
-Il report espone copertura del riuso, fitness media e risultati per scenario.
-
-Per eseguire il ciclo evolutivo, che riusa prima e genera una capability JSON
-solo quando necessario, esegui:
-
-```bash
-npm run evolve:curriculum
-```
-
-Imposta `MAX_REPAIR_ATTEMPTS` in `.env` per controllare quante correzioni
-guidate dal validatore vengono richieste per ogni episodio.
-
-## Generalizzazione JSON → codice
-
-Una capability JSON validata puo' essere trasformata in una piccola funzione
-procedurale e deve superare sia lo scenario sorgente sia la sua variante
-speculare prima di entrare nella libreria:
-
-```bash
-npm run generalize:capability
-```
-
-Il modello si seleziona con `OPENAI_MODEL`; vedi
-[Configurazione](#configurazione) per gli ID e i default verificati.
-
 ## Struttura
 
 - `src/belief-store.ts`: normalizzazione e stato delle percezioni.
@@ -402,16 +257,12 @@ Il modello si seleziona con `OPENAI_MODEL`; vedi
   energia, batterie, chiavi, porte e double-delivery.
 - `src/scenario-loader.ts`: schema Zod e loader per scenari JSON versionati.
 - `src/capability-validator.ts`: esecuzione sandbox e fitness trasparente delle
-  capability candidate.
-- `src/capability-library.ts`: archivio persistente e selezione delle capability
-  validate.
-- `src/code-capability.ts`: esecuzione controllata delle capability procedurali.
-- `src/environment-contract.ts` e `src/generic-capability.ts`: core agnostico
-  rispetto al dominio; conosce soltanto manifest, osservazioni, azioni e outcome.
+  piani della demo locale.
+- `src/agent-workspace/capability-artifact.ts`: contratto e compilazione delle
+  capability dirette.
+- `src/agent-workspace/capability-registry.ts`: registry che aggancia capability
+  attive al loop decisionale.
 - `src/turn-based-adapter.ts`: adapter che incapsula tutte le regole Deliveroo.
-
-La prima esecuzione end-to-end del core agnostico, usando l'adapter turn-based
-solo come ambiente, e' disponibile con `npm run evolve:generic`.
 
 `opencode.jsonc` configura il provider custom `unitn-litellm` sul gateway
 OpenAI-compatible UniTn. Il token resta esclusivamente in `.env` tramite
