@@ -5,5 +5,7 @@ traces/
 reports/
 capabilities/generic-library.json
 capabilities/discovery-*.json
+capabilities/generated/
+agent-workspace/capability-archive/
 work/repos/
 .module-sandbox/
