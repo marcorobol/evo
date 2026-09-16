@@ -6,12 +6,12 @@ import { evaluateModulePatch, modulePatchManifest, modulePatchProposalSchema } f
 import { runNamedScenario, type NamedScenario } from "./agent-workspace/candidate-evaluator.js";
 import { loadActivePolicies } from "./agent-workspace/promoted-policy.js";
 import { builtInScenarioFamilies } from "./agent-workspace/scenario-families.js";
-import { generateStructuredJson, StructuredJsonError, type StructuredUsage } from "./lmstudio-structured.js";
+import { generateStructuredJson, StructuredJsonError, type StructuredUsage } from "./openai-compatible-structured.js";
 import { loadScenario } from "./scenario-loader.js";
 
 try { process.loadEnvFile(".env"); } catch { /* optional */ }
 const attempts = positive("MODULE_PATCH_ATTEMPTS", 2);
-const models = (process.env.MODULE_PATCH_MODELS ?? process.env.LLM_MODEL ?? "meta/llama-3.3-70b").split(",").map((value) => value.trim()).filter(Boolean);
+const models = (process.env.MODULE_PATCH_MODELS ?? process.env.OPENAI_MODEL ?? "qwen3.8-27b").split(",").map((value) => value.trim()).filter(Boolean);
 const runID = process.env.MODULE_PATCH_RUN_ID ?? `module-evolve-${Date.now()}`;
 const fromScratch = process.env.EVOLUTION_FROM_SCRATCH === "1";
 const root = fileURLToPath(new URL("../scenarios/", import.meta.url));

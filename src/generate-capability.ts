@@ -10,7 +10,7 @@ const scenarioPath = fileURLToPath(new URL("../scenarios/key-door-delivery.v1.js
 const { metadata, scenario } = await loadScenario(scenarioPath);
 
 console.log("Loading the capability validator...");
-const [{ CapabilityProposer }, { validateCapability }, { configuredModel, verifyLmStudioConnection }, { TurnBasedEnvironment }, { CapabilityLibrary }] = await Promise.all([
+const [{ CapabilityProposer }, { validateCapability }, { configuredModel, verifyModelConnection }, { TurnBasedEnvironment }, { CapabilityLibrary }] = await Promise.all([
   import("./capability-proposer.js"),
   import("./capability-validator.js"),
   import("./model-provider.js"),
@@ -20,10 +20,10 @@ const [{ CapabilityProposer }, { validateCapability }, { configuredModel, verify
 
 const environment = new TurnBasedEnvironment(scenario);
 const proposer = new CapabilityProposer(configuredModel());
-console.log(`Generating a capability for scenario '${metadata.name}' with ${process.env.LLM_PROVIDER}/${process.env.LLM_MODEL}...`);
+console.log(`Generating a capability for scenario '${metadata.name}' with OpenAI-compatible/${process.env.OPENAI_MODEL ?? "qwen3.8-27b"}...`);
 
 try {
-  await verifyLmStudioConnection(process.env.LLM_BASE_URL ?? "http://localhost:1234/v1");
+  await verifyModelConnection();
   const proposal = await proposer.propose(
     process.env.CAPABILITY_GOAL ?? "Deliver a visible parcel while respecting the known environment constraints.",
     environment.observation(),

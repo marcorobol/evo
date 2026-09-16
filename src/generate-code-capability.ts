@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 console.log("Preparing procedural capability generation...");
 if (existsSync(".env")) process.loadEnvFile(".env");
 
-const [{ loadScenario }, { TurnBasedEnvironment }, { CodeCapabilityProposer }, { validateCodeCapability }, { configuredModel, verifyLmStudioConnection }, { CapabilityLibrary }] = await Promise.all([
+const [{ loadScenario }, { TurnBasedEnvironment }, { CodeCapabilityProposer }, { validateCodeCapability }, { configuredModel, verifyModelConnection }, { CapabilityLibrary }] = await Promise.all([
   import("./scenario-loader.js"),
   import("./turn-based-environment.js"),
   import("./code-capability-proposer.js"),
@@ -17,7 +17,7 @@ const { metadata, scenario } = await loadScenario(scenarioPath);
 const environment = new TurnBasedEnvironment(scenario);
 
 try {
-  await verifyLmStudioConnection(process.env.LLM_BASE_URL ?? "http://localhost:1234/v1");
+  await verifyModelConnection();
   const capability = await new CodeCapabilityProposer(configuredModel()).propose(
     process.env.CAPABILITY_GOAL ?? "Deliver a visible parcel while respecting the known environment constraints.",
     environment.observation(),

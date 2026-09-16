@@ -1,8 +1,10 @@
+import { existsSync } from "node:fs";
 import { BeliefStore } from "./belief-store.js";
 import { nextBaselineAction } from "./baseline-policy.js";
 import { DeliverooGateway } from "./deliveroo-gateway.js";
 import { TraceStore } from "./trace-store.js";
 
+if (existsSync(".env")) process.loadEnvFile(".env");
 const beliefStore = new BeliefStore();
 const traceStore = new TraceStore(`traces/${new Date().toISOString().replaceAll(":", "-")}.jsonl`);
 

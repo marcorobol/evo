@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { GenericCapabilityLibrary } from "./generic-capability-library.js";
 import { GenericCapabilityProposer } from "./generic-capability-proposer.js";
 import { validateGenericCapability } from "./generic-capability.js";
-import { configuredModel, verifyLmStudioConnection } from "./model-provider.js";
+import { configuredModel, verifyModelConnection } from "./model-provider.js";
 import { loadScenario } from "./scenario-loader.js";
 import { TurnBasedAdapter, decodeTurnBasedAction } from "./turn-based-adapter.js";
 import { TurnBasedEnvironment } from "./turn-based-environment.js";
@@ -14,7 +14,7 @@ const directory = fileURLToPath(new URL("../scenarios/", import.meta.url));
 const files = (await readdir(directory)).filter((file) => file.endsWith(".v1.json")).sort();
 const library = new GenericCapabilityLibrary();
 const proposer = new GenericCapabilityProposer(configuredModel());
-await verifyLmStudioConnection(process.env.LLM_BASE_URL ?? "http://localhost:1234/v1");
+await verifyModelConnection();
 const episodes: Array<{ scenario: string; outcome: "reused" | "evolved" | "rejected"; capability?: string; scoreDelta?: number }> = [];
 
 for (const file of files) {

@@ -22,7 +22,7 @@ try {
   );
   const validation = validateGenericCapability(environment, capability, decodeTurnBasedAction);
   const entry = validation.accepted ? await new GenericCapabilityLibrary().add(capability, validation) : undefined;
-  console.log(JSON.stringify({ backend: "opencode-sdk", model: process.env.LLM_MODEL, capability, validation, entry }, null, 2));
+  console.log(JSON.stringify({ backend: "opencode-sdk", model: process.env.OPENAI_MODEL ?? "qwen3.8-27b", capability, validation, entry }, null, 2));
   process.exitCode = validation.accepted ? 0 : 2;
 } finally {
   runner.close();

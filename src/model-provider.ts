@@ -2,8 +2,6 @@ import type { CapabilityModel } from "./capability-proposer.js";
 import { z } from "zod";
 import { capabilityProposalSchema } from "./capability-contract.js";
 
-type Provider = "lmstudio";
-
 function required(name: string): string {
   const value = process.env[name];
   if (!value) throw new Error(`Missing ${name}. Add it to .env before running the capability generator.`);
@@ -11,18 +9,10 @@ function required(name: string): string {
 }
 
 export function configuredModel(): CapabilityModel {
-  const provider = required("LLM_PROVIDER") as Provider;
-  const model = required("LLM_MODEL");
-
-  switch (provider) {
-    case "lmstudio":
-      return lmStudioModel(process.env.LLM_BASE_URL ?? "http://localhost:1234/v1", model, process.env.LMSTUDIO_API_KEY);
-    default:
-      throw new Error(`Unsupported LLM_PROVIDER '${provider}'. Use 'lmstudio'.`);
-  }
+  return openAICompatibleModel(configuredBaseURL(), required("OPENAI_MODEL"), process.env.OPENAI_API_KEY);
 }
 
-export async function verifyLmStudioConnection(baseURL: string, apiKey = process.env.LMSTUDIO_API_KEY): Promise<void> {
+export async function verifyModelConnection(baseURL = configuredBaseURL(), apiKey = process.env.OPENAI_API_KEY): Promise<void> {
   const endpoint = `${baseURL.replace(/\/$/, "")}/models`;
   try {
     const response = await fetch(endpoint, {
@@ -32,11 +22,11 @@ export async function verifyLmStudioConnection(baseURL: string, apiKey = process
     if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
-    throw new Error(`Cannot reach LM Studio at ${endpoint}. Start its local server and load the configured model. (${detail})`);
+    throw new Error(`Cannot reach the configured OpenAI-compatible endpoint at ${endpoint}. Check OPENAI_BASE_URL and OPENAI_API_KEY. (${detail})`);
   }
 }
 
-function lmStudioModel(baseURL: string, model: string, apiKey?: string): CapabilityModel {
+function openAICompatibleModel(baseURL: string, model: string, apiKey?: string): CapabilityModel {
   return {
     async generate(system, prompt, outputSchema = capabilityProposalSchema): Promise<unknown> {
       let response: Response;
@@ -64,13 +54,13 @@ function lmStudioModel(baseURL: string, model: string, apiKey?: string): Capabil
         });
       } catch (error) {
         const detail = error instanceof Error ? error.message : String(error);
-        throw new Error(`LM Studio capability request failed for '${model}': ${detail}`);
+        throw new Error(`OpenAI-compatible capability request failed for '${model}': ${detail}`);
       }
-      if (!response.ok) throw new Error(`LM Studio returned HTTP ${response.status}: ${await response.text()}`);
+      if (!response.ok) throw new Error(`OpenAI-compatible endpoint returned HTTP ${response.status}: ${await response.text()}`);
         const body = await response.json() as {
           choices?: Array<{ message?: { content?: string; reasoning_content?: string } }>;
         };
-        return parseLmStudioResponse(body);
+        return parseOpenAICompatibleResponse(body);
     },
   };
 }
@@ -79,13 +69,18 @@ function authorizationHeaders(apiKey?: string): HeadersInit {
   return apiKey ? { authorization: `Bearer ${apiKey}` } : {};
 }
 
-export function parseLmStudioResponse(body: {
+export function parseOpenAICompatibleResponse(body: {
   choices?: Array<{ message?: { content?: string; reasoning_content?: string } }>;
 }): unknown {
   const message = body.choices?.[0]?.message;
   // Some reasoning models, including local Qwen variants, place their final
   // structured answer in reasoning_content and leave content empty.
   const content = message?.content?.trim() || message?.reasoning_content?.trim();
-  if (!content) throw new Error(`LM Studio returned no usable text: ${JSON.stringify(body)}`);
+  if (!content) throw new Error(`OpenAI-compatible endpoint returned no usable text: ${JSON.stringify(body)}`);
   return JSON.parse(content.replace(/^```json\s*|\s*```$/g, ""));
+}
+
+function configuredBaseURL(): string {
+  const configured = required("OPENAI_BASE_URL").replace(/\/$/, "");
+  return configured.endsWith("/v1") ? configured : `${configured}/v1`;
 }

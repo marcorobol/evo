@@ -65,7 +65,7 @@ try {
 const report = {
   timestamp: new Date().toISOString(),
   backend: "opencode-sdk",
-  model: `lmstudio/${process.env.LLM_MODEL ?? "qwen/qwen3.8-27b"}`,
+  model: `${process.env.OPENCODE_PROVIDER ?? "unitn-litellm"}/${process.env.OPENAI_MODEL ?? "qwen3.8-27b"}`,
   episodes: metrics,
   summary: {
     reused: metrics.filter((episode) => episode.outcome === "reused").length,

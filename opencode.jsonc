@@ -1,18 +1,19 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "lmstudio/qwen/qwen3.8-27b",
+  "model": "unitn-litellm/qwen3.8-27b",
   "provider": {
-    "lmstudio": {
+    "unitn-litellm": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "UniTn LiteLLM",
       "options": {
-        "baseURL": "http://127.0.0.1:1234/v1",
-        "apiKey": "{env:LMSTUDIO_API_KEY}"
+        "baseURL": "https://llm.bears.disi.unitn.it/v1",
+        "apiKey": "{env:OPENAI_API_KEY}"
       },
       "models": {
-        "qwen/qwen3.8-27b": {
-          "compatibility": {
-            "reasoningField": "reasoning_content"
-          }
-        }
+        "qwen3.8-27b": { "name": "Qwen 3.8 27B" },
+        "llama-3.3-70b": { "name": "Llama 3.3 70B" },
+        "qwen3-coder-next": { "name": "Qwen 3 Coder Next" },
+        "gpt-4o": { "name": "GPT-4o" }
       }
     }
   }

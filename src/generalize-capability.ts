@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { CapabilityLibrary } from "./capability-library.js";
 import { CodeCapabilityProposer } from "./code-capability-proposer.js";
 import { validateCodeCapability } from "./code-capability-validator.js";
-import { configuredModel, verifyLmStudioConnection } from "./model-provider.js";
+import { configuredModel, verifyModelConnection } from "./model-provider.js";
 import { loadScenario } from "./scenario-loader.js";
 import { TurnBasedEnvironment } from "./turn-based-environment.js";
 
@@ -20,7 +20,7 @@ if (!seed || seed.representation !== "plan") {
   throw new Error("No validated JSON seed capability was found. Set SOURCE_CAPABILITY if needed.");
 }
 
-await verifyLmStudioConnection(process.env.LLM_BASE_URL ?? "http://localhost:1234/v1");
+await verifyModelConnection();
 const capability = await new CodeCapabilityProposer(configuredModel()).generalize(seed.capability, reference.observation());
 const referenceValidation = validateCodeCapability(reference, capability).validation;
 const mirrorValidation = validateCodeCapability(mirror, capability).validation;

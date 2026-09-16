@@ -31,14 +31,14 @@ export interface TokenUsage {
  * deterministic validator; OpenCode receives a textual, read-only context.
  */
 export async function createOpenCodeCapabilityRunner(options: OpenCodeRunnerOptions = {}): Promise<OpenCodeCapabilityRunner> {
-  const providerID = process.env.OPENCODE_PROVIDER ?? "lmstudio";
-  const configured = process.env.LLM_MODEL ?? "qwen/qwen3.8-27b";
+  const providerID = process.env.OPENCODE_PROVIDER ?? "unitn-litellm";
+  const configured = process.env.OPENAI_MODEL ?? "qwen3.8-27b";
   const modelID = configured.startsWith(`${providerID}/`) ? configured.slice(providerID.length + 1) : configured;
   const plannerTimeoutMs = positiveInteger("OPENCODE_PLANNER_TIMEOUT_MS", 180_000);
   const heartbeatMs = positiveInteger("OPENCODE_HEARTBEAT_MS", 5_000);
   const debugPrompts = process.env.OPENCODE_DEBUG_PROMPTS === "1";
   const sessionMode = options.sessionMode ?? "isolated";
-  if (!modelID) throw new Error("LLM_MODEL must name an LM Studio model.");
+  if (!modelID) throw new Error("OPENAI_MODEL must name a model configured by the OpenAI-compatible provider.");
 
   console.log("[opencode-experiment] loading OpenCode SDK");
   const { createOpencode } = await import("@opencode-ai/sdk");
@@ -106,7 +106,7 @@ export async function createOpenCodeCapabilityRunner(options: OpenCodeRunnerOpti
           .map((part) => part.text)
           .join("\n")
           .trim();
-        // Some local reasoning models (including Qwen through LM Studio) put
+        // Some reasoning models put
         // their structured answer in the reasoning channel and leave text
         // empty. Use it only as a fallback, never merge it with a real answer.
         const reasoning = response.data?.parts

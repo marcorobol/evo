@@ -1,9 +1,9 @@
 # Evolving Deliveroo Agent
 
-Baseline sperimentale per un agente BDI su Deliveroo.js. Il controllo del
-gioco e la persistenza dei trace sono deterministici; il modulo LLM verra'
-aggiunto come generatore di proposte strutturate e validate, non come esecutore
-di codice.
+Baseline sperimentale per un agente evolutivo su Deliveroo.js. Il controllo del
+gioco e la persistenza dei trace sono deterministici; il modulo LLM genera
+proposte strutturate e codice di capability, ma non esegue mai direttamente
+azioni nell'ambiente.
 
 Il percorso sperimentale principale e' ora l'ambiente locale turn-based:
 `TurnBasedEnvironment.step(action)` avanza esattamente di un turno. Non ha
@@ -22,8 +22,45 @@ parcel visibili, li raccoglie, calcola un percorso sulla mappa conosciuta e li
 porta alla tile di consegna.
 
 La demo locale e il validatore non usano un LLM e non richiedono una chiave API.
-Una chiave e' necessaria solo dopo aver configurato un provider cloud per
-`CapabilityProposer`; potra' anche essere sostituita da un modello locale.
+I comandi di esplorazione o evoluzione LLM usano invece il gateway UniTn LiteLLM
+configurato in `.env`.
+
+## Configurazione
+
+Copia `.env.example` in `.env` e inserisci soltanto `OPENAI_API_KEY`. Il file
+`.env` e' ignorato da Git. Tutti i comandi eseguibili caricano `.env`, incluso
+`npm run start:deliveroo`; le variabili gia' esportate dalla shell mantengono
+precedenza.
+
+Configurazione minima per il gateway UniTn:
+
+```dotenv
+OPENAI_BASE_URL=https://llm.bears.disi.unitn.it
+OPENAI_API_KEY=<la-tua-chiave>
+OPENAI_MODEL=qwen3.8-27b
+OPENCODE_PROVIDER=unitn-litellm
+```
+
+Il suffisso `/v1` e' aggiunto automaticamente per le chiamate dirette. Il file
+[`opencode.jsonc`](opencode.jsonc) usa invece l'endpoint completo per il server
+OpenCode embedded. Al momento della verifica, `qwen3.8-27b` ha risposto sia
+alle chiamate JSON strutturate sia al probe OpenCode. Gli ID disponibili dal
+gateway includono anche `llama-3.3-70b`, `qwen3-coder-next` e `gpt-4o`.
+
+| Gruppo | Variabili | Default |
+| --- | --- | --- |
+| Modello | `OPENAI_BASE_URL`, `OPENAI_API_KEY`, `OPENAI_MODEL` | gateway UniTn, chiave vuota, `qwen3.8-27b` |
+| OpenCode | `OPENCODE_PROVIDER`, `OPENCODE_PLANNER_TIMEOUT_MS`, `OPENCODE_HEARTBEAT_MS`, `OPENCODE_DEBUG_PROMPTS` | `unitn-litellm`, `180000`, `5000`, `0` |
+| Gioco live | `DELIVEROO_URL`, `DELIVEROO_NAME`, `DELIVEROO_TOKEN`, `DELIVEROO_STEP_SETTLE_MS`, `LIVE_ACTION_INTERVAL_MS`, `LIVE_MAX_STEPS`, `DELIVEROO_READY_TIMEOUT_MS` | vedi `.env.example` |
+| Capability | `CAPABILITY_GOAL`, `MAX_REPAIR_ATTEMPTS`, `SOURCE_CAPABILITY`, `CAPABILITY_ARTIFACT_MODEL` | scenario di consegna, `2`, capability chiave-porta, modello principale |
+| Discovery | `DISCOVERY_MAX_STEPS`, `DISCOVERY_CODE_ATTEMPTS`, `DISCOVERY_RUN_ID`, `DISCOVERY_RESUME` | `20`, `3`, ID timestamp, `0` |
+| Varianti | `EVOLVE_GENERATIONS`, `EVOLVE_SEED`, `EVOLVE_MAX_STEPS`, `EVOLVE_CODE_ATTEMPTS`, `EVOLVE_RUN_ID` | `10`, `1`, `20`, `3`, ID timestamp |
+| Workspace | `WORKSPACE_CODE_ATTEMPTS`, `WORKSPACE_EVOLVE_RUN_ID` | `2`, ID timestamp |
+| Patch modulari | `MODULE_PATCH_ATTEMPTS`, `MODULE_PATCH_MODELS`, `MODULE_PATCH_RUN_ID`, `EVOLUTION_FROM_SCRATCH` | `2`, Llama poi Qwen, ID timestamp, `0` |
+| Challenge | `CHALLENGE_ATTEMPTS`, `CHALLENGE_MODELS`, `CHALLENGE_RUN_ID` | `2`, Llama poi Qwen, ID timestamp |
+
+`NODE_ENV=test` e' riservata ai test e impedisce al solo runner
+`evolve:workspace:opencode` di caricare `.env`.
 
 ## CLI sperimentale: `evo`
 
@@ -96,14 +133,11 @@ ispezionare prompt e risposte in console.
 
 ## Workspace evolvibile dell'agente
 
-Il piano JSON non e' l'unico artefatto evolutivo. Il codice operativo e'
-diviso in moduli ispezionabili in `src/agent-workspace/`:
-
-- `navigation`: A* e il contratto di attraversabilita' fornito dall'ambiente;
-- `memory`: heatmap e trace locali all'episodio;
-- `task-selection`: ranking di task e reward;
-- `coordination`: contratto iniziale per intenzioni e riserve multi-agente;
-- `diagnostics`: rende leggibili eventi e benchmark falliti; non prescrive modifiche al modello.
+Il piano JSON non e' l'unico artefatto evolutivo. Il runtime espone un registro
+di capability agnostico rispetto al dominio: ogni capability dichiara uno hook
+di decisione, priorita' e funzione pura che puo' restituire un'azione oppure
+delegare alla baseline. `src/agent-workspace/` contiene il substrate iniziale,
+benchmark e contratti; non impone all'agente una tassonomia cognitiva fissa.
 
 Esegui il benchmark iniziale con:
 
@@ -129,20 +163,29 @@ in [`agent-workspace/AGENTS.md`](agent-workspace/AGENTS.md).
 
 ### Ciclo candidato → benchmark → promozione
 
-Il primo confine mutabile e' una **policy extension**: vero codice JavaScript
+Il primo confine mutabile e' una **capability artifact**: vero codice JavaScript
 che puo' sostituire una singola decisione, ma riceve soltanto un'osservazione
 serializzabile, la scelta baseline e la memoria dell'episodio. Non riceve
 filesystem, rete o un handle del gioco; il simulatore resta l'unico esecutore
 delle azioni. Questo consente di far generare al modello euristiche di
-precondizione, heatmap, esplorazione, pianificazione dell'energia e, in
-seguito, coordinamento, mantenendo il cambiamento verificabile.
+precondizione, esplorazione, pianificazione dell'energia o qualsiasi altra
+strategia motivata dai trace, mantenendo il cambiamento verificabile.
 
-Una proposta ha i campi `id`, `bottleneck`, `module`, `rationale`,
-`expectedMetric` e `source`, dove `source` e' una sola funzione JavaScript.
-Per provarla senza alterare l'agente base:
+Una proposta storica di policy extension ha i campi `id`, `bottleneck`,
+`module`, `rationale`, `expectedMetric` e `source`, dove `source` e' una sola
+funzione JavaScript. Per provarla senza alterare l'agente base:
 
 ```bash
 npm run evaluate:workspace-candidate -- proposta.json
+```
+
+Il percorso corrente per le capability dirette usa il contratto piu' stretto
+`id`, `purpose`, `activation` e `source`; `source` deve essere un'unica arrow
+function auto-contenuta e puo' essere agganciata solo allo hook `decision`.
+Per generarne una e valutarla contro training e holdout:
+
+```bash
+npm run evolve:artifact
 ```
 
 Il valutatore compila il candidato in un VM minimale, confronta baseline e
@@ -173,7 +216,7 @@ Ogni proposta, anche se respinta, viene salvata immutabilmente in
 successivi: il modello può riparare, combinare o riusare idee già esplorate.
 
 ```bash
-MODULE_PATCH_MODELS=meta/llama-3.3-70b,qwen/qwen3.8-27b \
+MODULE_PATCH_MODELS=llama-3.3-70b,qwen3.8-27b \
 MODULE_PATCH_ATTEMPTS=2 \
 npm run evolve:module-workspace
 ```
@@ -184,7 +227,7 @@ Per ispezionare una proposta JSON già disponibile senza chiamare un modello:
 npm run evaluate:module-patch -- proposta-modulo.json
 ```
 
-Seleziona soltanto l'episodio con la metrica peggiore, invia a OpenCode/LM Studio
+Seleziona soltanto l'episodio con la metrica peggiore, invia a OpenCode/LiteLLM
 osservazioni, azioni, esiti e contratto di esecuzione, poi persiste proposta,
 valutazione e token in `reports/workspace-evolve-*.json`. Non classifica il
 problema e non suggerisce un modulo o un algoritmo: questa decisione appartiene
@@ -221,7 +264,7 @@ risposta; non viene fermato da un successo precedente.
 
 ```bash
 CHALLENGE_ATTEMPTS=2 \
-CHALLENGE_MODELS=meta/llama-3.3-70b,qwen/qwen3.8-27b \
+CHALLENGE_MODELS=llama-3.3-70b,qwen3.8-27b \
 npm run discover:challenge:opencode
 ```
 
@@ -244,11 +287,9 @@ permetterà di confrontare heatmap e strategie alternative su seed holdout.
 ## Prima generazione LLM
 
 1. Copia `.env.example` in `.env`.
-2. Per LM Studio imposta `LLM_PROVIDER=lmstudio`, `LLM_MODEL` e, se necessario,
-   `LLM_BASE_URL`. Avvia il Local Server in LM Studio e carica il modello scelto.
-   Non serve una chiave.
-   Per i provider cloud imposta anche la relativa chiave, senza inserirla mai
-   in uno scenario o nel codice.
+2. Configura il gateway UniTn LiteLLM come descritto in
+   [Configurazione](#configurazione). La chiave resta in `.env`, mai in scenari
+   o codice.
 3. Esegui `npm run generate:capability`.
 
 Il generatore stampa una proposta JSON e il suo risultato di validazione. Una
@@ -307,10 +348,8 @@ speculare prima di entrare nella libreria:
 npm run generalize:capability
 ```
 
-Per collegarsi a un server LM Studio su una macchina della LAN, imposta
-`LLM_BASE_URL=http://<indirizzo-ip>:1234/v1`. Se in LM Studio e' attivo
-**Require Authentication**, salva il token in `LMSTUDIO_API_KEY` nel file
-`.env` (che non e' versionato).
+Il modello si seleziona con `OPENAI_MODEL`; vedi
+[Configurazione](#configurazione) per gli ID e i default verificati.
 
 ## Struttura
 
@@ -333,18 +372,17 @@ Per collegarsi a un server LM Studio su una macchina della LAN, imposta
 La prima esecuzione end-to-end del core agnostico, usando l'adapter turn-based
 solo come ambiente, e' disponibile con `npm run evolve:generic`.
 
-`opencode.jsonc` vincola l'eventuale host OpenCode embedded a
-`lmstudio/qwen/qwen3.8-27b`. Il token resta esclusivamente in `.env` tramite
-`LMSTUDIO_API_KEY`.
+`opencode.jsonc` configura il provider custom `unitn-litellm` sul gateway
+OpenAI-compatible UniTn. Il token resta esclusivamente in `.env` tramite
+`OPENAI_API_KEY`.
 
 Gli scenari sono in `scenarios/`; `key-door-delivery.v1.json` e' il primo caso
 versionato. Il validatore esegue il piano proposto su una copia dell'episodio:
 la selezione di una capability non modifica mai lo stato reale dell'esperimento.
 
-## Prossimo incremento
+## Garanzie sperimentali
 
-`src/capability-proposer.ts` espone gia' un contratto AI SDK/Zod per le
-capability candidate. Per usarlo manca solo la scelta e configurazione del
-provider del modello. L'agente potra' proporre piani nuovi, ma il runtime li
-accettera' soltanto dopo validazione, esecuzione controllata e valutazione
-quantitativa.
+Il modello puo' proporre piani e codice, ma l'ambiente deterministico resta
+l'unico esecutore. Ogni proposta passa parsing, contratto, sandbox, benchmark
+training e holdout prima di diventare promuovibile; una capability non attivata
+dal loop decisionale non puo' essere accettata come miglioramento.

@@ -6,10 +6,10 @@ import { TurnBasedEnvironment } from "./turn-based-environment.js";
 
 if (existsSync(".env")) process.loadEnvFile(".env");
 
-const providerID = process.env.OPENCODE_PROVIDER ?? "lmstudio";
-const modelName = process.env.LLM_MODEL ?? "qwen/qwen3.8-27b";
+const providerID = process.env.OPENCODE_PROVIDER ?? "unitn-litellm";
+const modelName = process.env.OPENAI_MODEL ?? "qwen3.8-27b";
 const modelID = modelName.startsWith(`${providerID}/`) ? modelName.slice(providerID.length + 1) : modelName;
-if (!modelID) throw new Error("LLM_MODEL must name an LM Studio model.");
+if (!modelID) throw new Error("OPENAI_MODEL must name a model configured by the OpenAI-compatible provider.");
 
 const scenarioPath = fileURLToPath(new URL("../scenarios/key-door-delivery.v1.json", import.meta.url));
 const { metadata, scenario } = await loadScenario(scenarioPath);

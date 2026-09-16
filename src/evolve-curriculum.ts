@@ -5,7 +5,7 @@ import { CapabilityLibrary } from "./capability-library.js";
 import { CapabilityProposer } from "./capability-proposer.js";
 import { validateCapability } from "./capability-validator.js";
 import { validateCodeCapability } from "./code-capability-validator.js";
-import { configuredModel, verifyLmStudioConnection } from "./model-provider.js";
+import { configuredModel, verifyModelConnection } from "./model-provider.js";
 import { loadScenario } from "./scenario-loader.js";
 import { TurnBasedEnvironment } from "./turn-based-environment.js";
 
@@ -16,7 +16,7 @@ const files = (await readdir(scenarioDirectory)).filter((file) => file.endsWith(
 const library = new CapabilityLibrary();
 const proposer = new CapabilityProposer(configuredModel());
 const maxRepairAttempts = Number.parseInt(process.env.MAX_REPAIR_ATTEMPTS ?? "2", 10);
-await verifyLmStudioConnection(process.env.LLM_BASE_URL ?? "http://localhost:1234/v1");
+await verifyModelConnection();
 
 const episodes: Array<{ scenario: string; outcome: "reused" | "evolved" | "repaired" | "rejected" | "error"; capability?: string; fitness?: number; error?: string }> = [];
 for (const file of files) {

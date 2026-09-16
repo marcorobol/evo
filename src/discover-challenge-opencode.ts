@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { z } from "zod";
-import { generateStructuredJson, StructuredJsonError, type StructuredUsage } from "./lmstudio-structured.js";
+import { generateStructuredJson, StructuredJsonError, type StructuredUsage } from "./openai-compatible-structured.js";
 import { loadActivePolicies } from "./agent-workspace/promoted-policy.js";
 import { createEvolvingAgent } from "./agent-workspace/evolving-agent.js";
 import { runBenchmark } from "./agent-workspace/benchmark-runner.js";
@@ -9,7 +9,7 @@ import { TurnBasedEnvironment } from "./turn-based-environment.js";
 
 try { process.loadEnvFile(".env"); } catch { /* optional */ }
 const attempts = positive("CHALLENGE_ATTEMPTS", 2);
-const models = (process.env.CHALLENGE_MODELS ?? "meta/llama-3.3-70b,qwen/qwen3.8-27b")
+const models = (process.env.CHALLENGE_MODELS ?? "llama-3.3-70b,qwen3.8-27b")
   .split(",").map((model) => model.trim()).filter(Boolean);
 if (!models.length) throw new Error("CHALLENGE_MODELS must contain at least one model ID.");
 const runID = process.env.CHALLENGE_RUN_ID ?? `challenge-discovery-${Date.now()}`;
@@ -25,7 +25,7 @@ console.log(`[challenge-discovery] '${runID}': generating up to ${attempts} nove
 for (let attempt = 1; attempt <= attempts; attempt += 1) {
   const model = models[(attempt - 1) % models.length]!;
     try {
-      console.log(`[challenge-discovery] requesting candidate ${attempt}/${attempts} from lmstudio/${model} with JSON Schema`);
+      console.log(`[challenge-discovery] requesting candidate ${attempt}/${attempts} from OpenAI-compatible/${model} with JSON Schema`);
       const response = await generateStructuredJson({ model, system: system(), prompt: prompt(active.map((policy) => ({ id: policy.proposal.id, module: policy.proposal.module })), feedback), schemaName: "challenge_proposal", schema: challengeOutputSchema() });
       usage.input += response.usage.input;
       usage.output += response.usage.output;

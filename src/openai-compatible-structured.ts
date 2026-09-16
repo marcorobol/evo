@@ -20,7 +20,7 @@ export class StructuredJsonError extends Error {
   }
 }
 
-/** OpenAI-compatible LM Studio call with native structured-output first. */
+/** OpenAI-compatible chat-completions call with native structured-output first. */
 export async function generateStructuredJson(input: { model: string; system: string; prompt: string; schemaName: string; schema: object }): Promise<StructuredResponse> {
   const endpoint = `${baseUrl()}/chat/completions`;
   const common = {
@@ -39,15 +39,15 @@ export async function generateStructuredJson(input: { model: string; system: str
     choices?: Array<{ message?: { content?: unknown; reasoning_content?: unknown } }>;
     usage?: { prompt_tokens?: unknown; completion_tokens?: unknown; completion_tokens_details?: { reasoning_tokens?: unknown } };
   };
-  if (!response.ok) throw new Error(`LM Studio structured request failed (${response.status}): ${JSON.stringify(raw)}`);
+  if (!response.ok) throw new Error(`OpenAI-compatible structured request failed (${response.status}): ${JSON.stringify(raw)}`);
   const message = raw.choices?.[0]?.message;
   const rawText = typeof message?.content === "string" && message.content.trim()
     ? message.content
     : typeof message?.reasoning_content === "string" ? message.reasoning_content : "";
-  if (!rawText) throw new StructuredJsonError(`LM Studio returned no JSON content: ${JSON.stringify(raw)}`, rawText, raw, mode);
+  if (!rawText) throw new StructuredJsonError(`OpenAI-compatible endpoint returned no JSON content: ${JSON.stringify(raw)}`, rawText, raw, mode);
   let value: unknown;
   try { value = JSON.parse(rawText.replace(/^```json\s*|\s*```$/g, "").trim()); }
-  catch (error) { throw new StructuredJsonError(`LM Studio returned invalid JSON: ${error instanceof Error ? error.message : String(error)}`, rawText, raw, mode); }
+  catch (error) { throw new StructuredJsonError(`OpenAI-compatible endpoint returned invalid JSON: ${error instanceof Error ? error.message : String(error)}`, rawText, raw, mode); }
   return {
     value, rawText, raw, mode,
     usage: {
@@ -57,11 +57,15 @@ export async function generateStructuredJson(input: { model: string; system: str
 }
 
 async function request(url: string, body: object): Promise<Response> {
-  const token = process.env.LMSTUDIO_API_KEY;
+  const token = process.env.OPENAI_API_KEY;
   return fetch(url, { method: "POST", headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body) });
 }
+
 function baseUrl(): string {
-  const configured = process.env.LLM_BASE_URL ?? "http://127.0.0.1:1234/v1";
-  return configured.replace(/\/$/, "");
+  const configured = process.env.OPENAI_BASE_URL;
+  if (!configured) throw new Error("Missing OPENAI_BASE_URL. Add it to .env before running structured generation.");
+  const withoutTrailingSlash = configured.replace(/\/$/, "");
+  return withoutTrailingSlash.endsWith("/v1") ? withoutTrailingSlash : `${withoutTrailingSlash}/v1`;
 }
+
 function number(value: unknown): number { return typeof value === "number" && Number.isFinite(value) ? value : 0; }

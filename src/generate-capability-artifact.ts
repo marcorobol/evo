@@ -5,12 +5,12 @@ import { archiveCapability, findSimilarCapability, loadCapabilityArchive } from 
 import { evaluateCandidate, type NamedScenario } from "./agent-workspace/candidate-evaluator.js";
 import { loadActivePolicies } from "./agent-workspace/promoted-policy.js";
 import { builtInScenarioFamilies } from "./agent-workspace/scenario-families.js";
-import { generateStructuredJson } from "./lmstudio-structured.js";
+import { generateStructuredJson } from "./openai-compatible-structured.js";
 import { loadScenario } from "./scenario-loader.js";
 
 try { process.loadEnvFile(".env"); } catch { /* optional */ }
 const runID = `artifact-evolve-${Date.now()}`;
-const model = process.env.CAPABILITY_ARTIFACT_MODEL ?? process.env.LLM_MODEL ?? "meta/llama-3.3-70b";
+const model = process.env.CAPABILITY_ARTIFACT_MODEL ?? process.env.OPENAI_MODEL ?? "qwen3.8-27b";
 const root = fileURLToPath(new URL("../scenarios/", import.meta.url));
 const load = async (name: string, observationRadius?: number): Promise<NamedScenario> => { const item = await loadScenario(`${root}/${name}.v1.json`); return { name: item.metadata.name, scenario: item.scenario, ...(observationRadius === undefined ? {} : { observationRadius }) }; };
 const families = builtInScenarioFamilies();
