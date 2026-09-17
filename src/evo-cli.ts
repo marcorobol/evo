@@ -61,7 +61,7 @@ try {
   const lines = (error instanceof Error ? error.message : String(error)).split("\n");
   console.error(`[evo] ${lines[0]}`);
   for (const line of lines.slice(1)) console.error(`       ${line}`);
-  process.exitCode = 1;
+  process.exit(1);
 }
 
 function enableBlankSlate(options: string[]): void {
