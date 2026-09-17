@@ -1,4 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
+import { realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { generateStructuredJson, StructuredJsonError, type StructuredUsage } from "./openai-compatible-structured.js";
 import { loadDiscoveredCapabilities } from "./agent-workspace/capability-store.js";
@@ -7,23 +9,21 @@ import { runBenchmark } from "./agent-workspace/benchmark-runner.js";
 import { parseScenario, scenarioSchema } from "./scenario-loader.js";
 import { TurnBasedEnvironment } from "./turn-based-environment.js";
 
-try { process.loadEnvFile(".env"); } catch { /* optional */ }
-const attempts = positive("CHALLENGE_ATTEMPTS", 2);
-const models = (process.env.CHALLENGE_MODELS ?? "llama-3.3-70b,qwen3.8-27b")
-  .split(",").map((model) => model.trim()).filter(Boolean);
-if (!models.length) throw new Error("CHALLENGE_MODELS must contain at least one model ID.");
-const runID = process.env.CHALLENGE_RUN_ID ?? `challenge-discovery-${Date.now()}`;
-const proposalSchema = z.object({
-  scenario: scenarioSchema,
-});
-const active = await loadDiscoveredCapabilities();
-const outcomes: Array<{ attempt: number; model: string; name?: string; accepted: boolean; reason: string; baseline?: { score: number; achieved: boolean }; witness?: { score: number; acceptedActions: number }; raw?: { mode: string; text: string } }> = [];
-const usage: StructuredUsage = { input: 0, output: 0, reasoning: 0, requests: 0 };
-let feedback: string | undefined;
+export async function main(options: { runID?: string; attempts?: number; models?: string[] } = {}): Promise<number> {
+  try { process.loadEnvFile(".env"); } catch { /* optional */ }
+  const attempts = options.attempts ?? positive("CHALLENGE_ATTEMPTS", 2);
+  const models = options.models ?? (process.env.CHALLENGE_MODELS ?? "llama-3.3-70b,qwen3.8-27b").split(",").map((model) => model.trim()).filter(Boolean);
+  if (!models.length) throw new Error("CHALLENGE_MODELS must contain at least one model ID.");
+  const runID = options.runID ?? process.env.CHALLENGE_RUN_ID ?? `challenge-discovery-${Date.now()}`;
+  const proposalSchema = z.object({ scenario: scenarioSchema });
+  const active = await loadDiscoveredCapabilities();
+  const outcomes: Array<{ attempt: number; model: string; name?: string; accepted: boolean; reason: string; baseline?: { score: number; achieved: boolean }; witness?: { score: number; acceptedActions: number }; raw?: { mode: string; text: string } }> = [];
+  const usage: StructuredUsage = { input: 0, output: 0, reasoning: 0, requests: 0 };
+  let feedback: string | undefined;
 
-console.log(`[challenge-discovery] '${runID}': generating up to ${attempts} novel deterministic challenge(s)`);
-for (let attempt = 1; attempt <= attempts; attempt += 1) {
-  const model = models[(attempt - 1) % models.length]!;
+  console.log(`[challenge-discovery] '${runID}': generating up to ${attempts} novel deterministic challenge(s)`);
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const model = models[(attempt - 1) % models.length]!;
     try {
       console.log(`[challenge-discovery] requesting candidate ${attempt}/${attempts} from OpenAI-compatible/${model} with JSON Schema`);
       const response = await generateStructuredJson({ model, system: system(), prompt: prompt(active.map((capability) => ({ id: capability.descriptor.id, purpose: capability.descriptor.purpose })), feedback), schemaName: "challenge_proposal", schema: challengeOutputSchema() });
@@ -62,10 +62,12 @@ for (let attempt = 1; attempt <= attempts; attempt += 1) {
       feedback = `Previous candidate was rejected: ${reason}. Return only an object conforming to the JSON Schema.`;
     }
   }
-await mkdir("reports", { recursive: true });
-const report = { runID, models, activeCapabilities: active.map((capability) => capability.descriptor.id), outcomes, usage, usageScope: "chat-completions" };
-await writeFile(`reports/${runID}.json`, `${JSON.stringify(report, null, 2)}\n`);
-console.log(`[challenge-discovery] report: reports/${runID}.json`);
+  await mkdir("reports", { recursive: true });
+  const report = { runID, models, activeCapabilities: active.map((capability) => capability.descriptor.id), outcomes, usage, usageScope: "chat-completions" };
+  await writeFile(`reports/${runID}.json`, `${JSON.stringify(report, null, 2)}\n`);
+  console.log(`[challenge-discovery] report: reports/${runID}.json`);
+  return 0;
+}
 
 function system(): string {
   return [
@@ -88,22 +90,22 @@ function prompt(capabilities: Array<{ id: string; purpose: string }>, previousFe
 
 function challengeOutputSchema(): object {
   return {
-  type: "object", additionalProperties: false, required: ["scenario"], properties: {
-    scenario: {
-      type: "object", additionalProperties: false,
-      required: ["version", "name", "description", "agent", "tiles", "parcels", "batteries", "keys", "doors"],
-      properties: {
-        version: { const: 1 }, name: { type: "string", minLength: 1 }, description: { type: "string", minLength: 1 },
-        agent: { type: "object", additionalProperties: false, required: ["id", "name", "x", "y", "score"], properties: { id: { type: "string" }, name: { type: "string" }, x: { type: "integer", minimum: 0 }, y: { type: "integer", minimum: 0 }, score: { type: "number" } } },
-        tiles: { type: "array", minItems: 1, maxItems: 16, items: { type: "object", additionalProperties: false, required: ["x", "y", "type"], properties: { x: { type: "integer", minimum: 0 }, y: { type: "integer", minimum: 0 }, type: { enum: ["0", "1", "2", "3", "4", "5"] } } } },
-        parcels: { type: "array", maxItems: 2, items: { type: "object", additionalProperties: false, required: ["id", "x", "y", "reward"], properties: { id: { type: "string" }, x: { type: "integer", minimum: 0 }, y: { type: "integer", minimum: 0 }, reward: { type: "number", exclusiveMinimum: 0 } } } },
-        batteries: { type: "array", maxItems: 1, items: { type: "object", additionalProperties: false, required: ["x", "y"], properties: { x: { type: "integer", minimum: 0 }, y: { type: "integer", minimum: 0 } } } },
-        keys: { type: "array", maxItems: 1, items: { type: "object", additionalProperties: false, required: ["x", "y"], properties: { x: { type: "integer", minimum: 0 }, y: { type: "integer", minimum: 0 } } } },
-        doors: { type: "array", maxItems: 1, items: { type: "object", additionalProperties: false, required: ["x", "y"], properties: { x: { type: "integer", minimum: 0 }, y: { type: "integer", minimum: 0 } } } },
-        initialEnergy: { type: "number", exclusiveMinimum: 0 }, energyCost: { type: "number", exclusiveMinimum: 0 },
+    type: "object", additionalProperties: false, required: ["scenario"], properties: {
+      scenario: {
+        type: "object", additionalProperties: false,
+        required: ["version", "name", "description", "agent", "tiles", "parcels", "batteries", "keys", "doors"],
+        properties: {
+          version: { const: 1 }, name: { type: "string", minLength: 1 }, description: { type: "string", minLength: 1 },
+          agent: { type: "object", additionalProperties: false, required: ["id", "name", "x", "y", "score"], properties: { id: { type: "string" }, name: { type: "string" }, x: { type: "integer", minimum: 0 }, y: { type: "integer", minimum: 0 }, score: { type: "number" } } },
+          tiles: { type: "array", minItems: 1, maxItems: 16, items: { type: "object", additionalProperties: false, required: ["x", "y", "type"], properties: { x: { type: "integer", minimum: 0 }, y: { type: "integer", minimum: 0 }, type: { enum: ["0", "1", "2", "3", "4", "5"] } } } },
+          parcels: { type: "array", maxItems: 2, items: { type: "object", additionalProperties: false, required: ["id", "x", "y", "reward"], properties: { id: { type: "string" }, x: { type: "integer", minimum: 0 }, y: { type: "integer", minimum: 0 }, reward: { type: "number", exclusiveMinimum: 0 } } } },
+          batteries: { type: "array", maxItems: 1, items: { type: "object", additionalProperties: false, required: ["x", "y"], properties: { x: { type: "integer", minimum: 0 }, y: { type: "integer", minimum: 0 } } } },
+          keys: { type: "array", maxItems: 1, items: { type: "object", additionalProperties: false, required: ["x", "y"], properties: { x: { type: "integer", minimum: 0 }, y: { type: "integer", minimum: 0 } } } },
+          doors: { type: "array", maxItems: 1, items: { type: "object", additionalProperties: false, required: ["x", "y"], properties: { x: { type: "integer", minimum: 0 }, y: { type: "integer", minimum: 0 } } } },
+          initialEnergy: { type: "number", exclusiveMinimum: 0 }, energyCost: { type: "number", exclusiveMinimum: 0 },
+        },
       },
     },
-  },
   };
 }
 
@@ -131,6 +133,7 @@ function findWitness(scenario: ReturnType<typeof parseScenario>["scenario"]) {
   }
   return { score: 0, acceptedActions: 0, actions: [] };
 }
+
 function safeName(name: string): string {
   const value = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
   if (!value) throw new Error("Scenario name cannot be converted to a safe filename.");
@@ -141,3 +144,10 @@ function positive(name: string, fallback: number): number {
   if (!Number.isInteger(value) || value < 1) throw new Error(`${name} must be a positive integer.`);
   return value;
 }
+
+const invokedAsScript = (() => {
+  if (!process.argv[1]) return false;
+  try { return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)); }
+  catch { return false; }
+})();
+if (invokedAsScript) process.exitCode = await main();

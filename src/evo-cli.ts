@@ -1,7 +1,15 @@
+import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
-import { spawn } from "node:child_process";
 import { capabilityArtifactSchema, compileCapabilityArtifact } from "./agent-workspace/capability-artifact.js";
 import { promoteCapability } from "./agent-workspace/capability-store.js";
+import { main as runWorkspaceBenchmarks } from "./run-workspace-benchmarks.js";
+import { main as runScenarioFamilies } from "./run-scenario-families.js";
+import { main as generateArtifact } from "./generate-capability-artifact.js";
+import { main as evolveModule } from "./evolve-module-workspace.js";
+import { main as discoverChallenge } from "./discover-challenge-opencode.js";
+import { main as evaluateModulePatchMain } from "./evaluate-module-patch.js";
+
+if (existsSync(".env")) process.loadEnvFile(".env");
 
 interface Episode {
   scenario?: string;
@@ -15,13 +23,8 @@ interface Episode {
   code?: { attempts: number; path?: string; reference?: { accepted: boolean }; mirror?: { accepted: boolean }; error?: string };
 }
 interface Usage { requests?: number; input: number; output: number; reasoning: number; cacheRead?: number; cacheWrite?: number; cost?: number; }
-interface EvolutionResult { generation: number; achieved: boolean; steps: number; score: number; code?: string; reused?: string; error?: string; }
 interface Report {
   runID: string;
-  maximumSteps?: number;
-  maximumCodeAttempts?: number;
-  episodes?: Episode[];
-  results?: EvolutionResult[];
   artifact?: unknown;
   evaluation?: { accepted?: boolean; reason?: string };
   reason?: string;
@@ -29,6 +32,7 @@ interface Report {
   proposals?: Array<{ accepted?: boolean; reason?: string }>;
   outcomes?: Array<{ accepted?: boolean; reason?: string }>;
   families?: unknown[];
+  episodes?: Episode[];
   usage?: Usage;
   usageScope?: string;
 }
@@ -36,27 +40,34 @@ interface Report {
 const [command = "help", runID, ...options] = process.argv.slice(2);
 const commandOptions = runID?.startsWith("--") ? [runID, ...options] : options;
 const benchmarkTarget = runID && !runID.startsWith("--") ? runID : commandOptions.find((argument) => !argument.startsWith("--")) ?? "all";
-switch (command) {
-  case "list": await list(); break;
-  case "show": if (!runID) usage(1); else show(await load(runID)); break;
-  case "benchmark": await benchmark(benchmarkTarget, commandOptions); break;
-  case "artifact": await artifact(commandOptions); break;
-  case "promote": if (!runID) usage(1); else await promote(runID); break;
-  case "evolve": await evolve(commandOptions); break;
-  case "module": await modulePatch(commandOptions); break;
-  case "challenge": await challenge(commandOptions); break;
-  default: usage(command === "help" ? 0 : 1);
+
+try {
+  switch (command) {
+    case "list": await list(); break;
+    case "show": if (!runID || runID.startsWith("--")) usage(1); else show(await load(runID)); break;
+    case "benchmark": await benchmark(benchmarkTarget, commandOptions); break;
+    case "artifact": await artifact(commandOptions); break;
+    case "promote": if (!runID || runID.startsWith("--")) usage(1); else await promote(runID); break;
+    case "evolve": await evolve(commandOptions); break;
+    case "module": await modulePatch(commandOptions); break;
+    case "evaluate": if (!runID || runID.startsWith("--")) usage(1); else await evaluate(runID); break;
+    case "challenge": await challenge(commandOptions); break;
+    default: usage(command === "help" ? 0 : 1);
+  }
+} catch (error) {
+  console.error(`[evo] command failed: ${error instanceof Error ? error.message : String(error)}`);
+  process.exitCode = 1;
 }
 
-/** Blank-slate regime: set before launching children so every step inherits it. */
 function enableBlankSlate(options: string[]): void {
   if (options.includes("--blank-slate")) process.env.EVOLUTION_BLANK_SLATE = "1";
 }
 
 async function list(): Promise<void> {
-  const reports = await Promise.all((await readdir("reports", { withFileTypes: true }))
-    .filter((entry) => entry.isFile() && entry.name.endsWith(".json"))
-    .map((entry) => load(entry.name.slice(0, -5)).catch(() => undefined)));
+  let entries: string[] = [];
+  try { entries = (await readdir("reports", { withFileTypes: true })).filter((entry) => entry.isFile() && entry.name.endsWith(".json")).map((entry) => entry.name.slice(0, -5)); }
+  catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+  const reports = await Promise.all(entries.map((id) => load(id).catch(() => undefined)));
   const sessions = reports.filter((report): report is Report => report !== undefined).sort((a, b) => b.runID.localeCompare(a.runID));
   if (!sessions.length) return console.log("No experiment reports found.");
   console.log("RUN                              TYPE        STATUS                 IN      OUT   REASON");
@@ -66,35 +77,30 @@ async function list(): Promise<void> {
 }
 
 function show(report: Report): void {
-  if (!report.episodes && !report.results) {
+  if (!report.episodes) {
     console.log(`${report.runID}: ${reportKind(report)}; ${reportStatus(report)}.`);
     console.log(report.usage
-      ? `Tokens: input ${report.usage.input}, output ${report.usage.output}, reasoning ${report.usage.reasoning}; requests ${report.usage.requests ?? "n/a"}.`
+      ? `Tokens (${report.usageScope ?? "chat-completions"}): input ${report.usage.input}, output ${report.usage.output}, reasoning ${report.usage.reasoning}; requests ${report.usage.requests ?? "n/a"}.`
       : "Token usage: not reported.");
     return;
   }
   const stats = summarize(report);
-  console.log(`${report.runID}: ${stats.successes}/${stats.episodes} successful, score ${stats.score}, validated code ${stats.code}.`);
-  console.log("SCENARIO                    OK  STEPS  SCORE  JSON  CODE       REUSE");
-  for (const episode of rows(report)) {
-    const json = episode.learnedCapability ? "ok" : episode.capabilityError ? "rejected" : "-";
-    const code = episode.code?.path ? "validated" : episode.code?.error ? "rejected" : "-";
-    const reuse = (episode as Episode & { reused?: string }).reused ?? "-";
-    console.log(`${(episode.scenario ?? episode.name ?? "unnamed").padEnd(27)} ${String(episode.achieved).padEnd(3)} ${String(episode.steps).padStart(6)} ${String(episode.score).padStart(6)}  ${json.padEnd(8)} ${code.padEnd(10)} ${reuse}`);
+  console.log(`${report.runID}: ${stats.successes}/${stats.episodes} successful, score ${stats.score}.`);
+  console.log("SCENARIO                    OK  STEPS  SCORE");
+  for (const episode of report.episodes) {
+    console.log(`${(episode.scenario ?? episode.name ?? "unnamed").padEnd(27)} ${String(episode.achieved).padEnd(3)} ${String(episode.steps).padStart(6)} ${String(episode.score).padStart(6)}`);
   }
-  console.log(report.usage
-    ? `Tokens (${report.usageScope ?? "scope unknown"}): input ${report.usage.input}, output ${report.usage.output}, reasoning ${report.usage.reasoning}, cache read ${report.usage.cacheRead ?? "n/a"}; requests ${report.usage.requests ?? "n/a"}; cost ${report.usage.cost ?? "n/a"}.`
-    : "Token usage: n/a for legacy reports.");
+  if (report.usage) console.log(`Tokens (${report.usageScope ?? "chat-completions"}): input ${report.usage.input}, output ${report.usage.output}, reasoning ${report.usage.reasoning}, cache read ${report.usage.cacheRead ?? "n/a"}; requests ${report.usage.requests ?? "n/a"}; cost ${report.usage.cost ?? "n/a"}.`);
 }
 
 async function benchmark(target: string, options: string[]): Promise<void> {
   enableBlankSlate(options);
-  if (target === "workspace") return setExitCode(await launch({}, "benchmark:workspace"));
-  if (target === "families") return setExitCode(await launch({}, "benchmark:families"));
+  if (target === "workspace") return setExitCode(await runWorkspaceBenchmarks());
+  if (target === "families") return setExitCode(await runScenarioFamilies());
   if (target === "all") {
-    const workspace = await launch({}, "benchmark:workspace");
+    const workspace = await runWorkspaceBenchmarks();
     if (workspace !== 0) return setExitCode(workspace);
-    return setExitCode(await launch({}, "benchmark:families"));
+    return setExitCode(await runScenarioFamilies());
   }
   throw new Error("evo benchmark accepts 'workspace', 'families', or 'all'.");
 }
@@ -102,11 +108,9 @@ async function benchmark(target: string, options: string[]): Promise<void> {
 async function artifact(options: string[]): Promise<void> {
   enableBlankSlate(options);
   const model = option(options, "--model");
-  const code = await launch({ ...(model ? { CAPABILITY_ARTIFACT_MODEL: model } : {}) }, "evolve:artifact");
-  if (code !== 0) process.exitCode = code;
+  setExitCode(await generateArtifact({ ...(model ? { model } : {}) }));
 }
 
-/** Promote only a capability whose immutable report passed evaluation. */
 async function promote(runID: string): Promise<void> {
   const report = await load(runID);
   if (!report.artifact) throw new Error(`Report '${runID}' contains no capability artifact.`);
@@ -118,10 +122,6 @@ async function promote(runID: string): Promise<void> {
   console.log(`[evo] promoted '${artifact.id}' from ${runID}. It is now loaded by benchmarks and subsequent artifact evaluations.`);
 }
 
-/**
- * Repeated controlled evolution. A generated proposal remains archived even
- * when it fails; only a strict benchmark improvement is activated.
- */
 async function evolve(options: string[]): Promise<void> {
   enableBlankSlate(options);
   const iterations = positiveInteger(option(options, "--iterations") ?? "1", "--iterations");
@@ -135,7 +135,7 @@ async function evolve(options: string[]): Promise<void> {
     for (let iteration = 1; iteration <= iterations; iteration += 1) {
       const artifactRunID = `${evolutionID}-artifact-${iteration}`;
       console.log(`\n[evo] iteration ${iteration}/${iterations}: generating ${artifactRunID}`);
-      const exitCode = await launch({ CAPABILITY_ARTIFACT_RUN_ID: artifactRunID, CAPABILITY_ARTIFACT_CYCLE_ID: evolutionID, ...(model ? { CAPABILITY_ARTIFACT_MODEL: model } : {}) }, "evolve:artifact");
+      const exitCode = await generateArtifact({ runID: artifactRunID, cycleID: evolutionID, ...(model ? { model } : {}) });
       let promoted = false;
       let reason: string | undefined;
       if (exitCode === 0) {
@@ -146,12 +146,12 @@ async function evolve(options: string[]): Promise<void> {
             await promote(artifactRunID);
             promoted = true;
             console.log("[evo] running regression benchmarks after promotion.");
-            const workspaceExit = await launch({}, "benchmark:workspace");
-            const benchmarkExit = workspaceExit === 0 ? await launch({}, "benchmark:families") : workspaceExit;
+            const workspaceExit = await runWorkspaceBenchmarks();
+            const benchmarkExit = workspaceExit === 0 ? await runScenarioFamilies() : workspaceExit;
             if (benchmarkExit !== 0) throw new Error(`Post-promotion benchmark failed with exit code ${benchmarkExit}.`);
           } else console.log(`[evo] candidate retained as evidence, not promoted: ${reason ?? "not accepted"}`);
         } catch (error) { reason = error instanceof Error ? error.message : String(error); console.error(`[evo] iteration ${iteration} could not be promoted: ${reason}`); }
-      } else reason = `artifact generation exited with code ${exitCode}`;
+      } else reason = `artifact generation failed (exit ${exitCode})`;
       results.push({ iteration, artifactRunID, promoted, ...(reason ? { reason } : {}), exitCode });
     }
   } catch (error) {
@@ -168,32 +168,28 @@ async function evolve(options: string[]): Promise<void> {
 
 async function modulePatch(options: string[]): Promise<void> {
   enableBlankSlate(options);
-  const attempts = option(options, "--attempts");
-  const models = option(options, "--models");
+  const attemptsRaw = option(options, "--attempts");
+  const modelsRaw = option(options, "--models");
   const fromScratch = options.includes("--from-scratch");
-  setExitCode(await launch({
-    ...(attempts ? { MODULE_PATCH_ATTEMPTS: attempts } : {}),
-    ...(models ? { MODULE_PATCH_MODELS: models } : {}),
-    ...(fromScratch ? { EVOLUTION_FROM_SCRATCH: "1" } : {}),
-  }, "evolve:module-workspace"));
+  setExitCode(await evolveModule({
+    ...(attemptsRaw ? { attempts: positiveInteger(attemptsRaw, "--attempts") } : {}),
+    ...(modelsRaw ? { models: modelsRaw.split(",").map((m) => m.trim()).filter(Boolean) } : {}),
+    ...(fromScratch ? { fromScratch: true } : {}),
+  }));
+}
+
+async function evaluate(proposalPath: string): Promise<void> {
+  setExitCode(await evaluateModulePatchMain({ proposalPath }));
 }
 
 async function challenge(options: string[]): Promise<void> {
   enableBlankSlate(options);
-  const attempts = option(options, "--attempts");
-  const models = option(options, "--models");
-  setExitCode(await launch({
-    ...(attempts ? { CHALLENGE_ATTEMPTS: attempts } : {}),
-    ...(models ? { CHALLENGE_MODELS: models } : {}),
-  }, "discover:challenge:opencode"));
-}
-
-async function launch(environment: Record<string, string>, script: string): Promise<number> {
-  const child = spawn("npm", ["run", script], {
-    cwd: process.cwd(), stdio: "inherit",
-    env: { ...process.env, ...environment },
-  });
-  return new Promise<number>((resolve) => child.on("exit", (code) => resolve(code ?? 1)));
+  const attemptsRaw = option(options, "--attempts");
+  const modelsRaw = option(options, "--models");
+  setExitCode(await discoverChallenge({
+    ...(attemptsRaw ? { attempts: positiveInteger(attemptsRaw, "--attempts") } : {}),
+    ...(modelsRaw ? { models: modelsRaw.split(",").map((m) => m.trim()).filter(Boolean) } : {}),
+  }));
 }
 
 function setExitCode(code: number): void { if (code !== 0) process.exitCode = code; }
@@ -205,11 +201,11 @@ async function load(id: string): Promise<Report> {
 }
 
 function summarize(report: Report) {
+  const episodes = report.episodes ?? [];
   return {
-    episodes: rows(report).length,
-    successes: rows(report).filter((episode) => episode.achieved).length,
-    score: rows(report).reduce((total, episode) => total + episode.score, 0),
-    code: rows(report).filter((episode) => episode.code?.path).length,
+    episodes: episodes.length,
+    successes: episodes.filter((episode) => episode.achieved).length,
+    score: episodes.reduce((total, episode) => total + episode.score, 0),
   };
 }
 
@@ -222,14 +218,11 @@ function reportKind(report: Report): string {
   if (report.runID.startsWith("artifact-evolution-")) return "evolution";
   if (report.artifact) return "artifact";
   if (report.outcomes) return "challenge";
-  // Legacy report shapes below: no current writer emits these, but existing
-  // report files stay readable as the help text promises.
-  if (report.runID.startsWith("workspace-evolve-")) return "workspace";
-  if (report.proposals) return report.runID.startsWith("module-") ? "module" : "workspace";
+  if (report.proposals && report.runID.startsWith("module-")) return "module";
+  if (report.runID.startsWith("module-patch-")) return "evaluate";
   if (report.families) return "families";
   if (report.runID.startsWith("workspace-benchmark-")) return "benchmark";
-  if (report.episodes) return "discovery";
-  if (report.results) return "variants";
+  if (report.episodes) return "benchmark";
   return "report";
 }
 
@@ -238,31 +231,18 @@ function reportStatus(report: Report): string {
     const iterations = (report as Report & { iterations?: Array<{ promoted?: boolean }> }).iterations ?? [];
     return `${iterations.filter((item) => item.promoted).length}/${iterations.length} promoted`;
   }
-  if (report.status === "no-change") return "no change";
+  if (report.status === "generation-failed") return "generation failed";
   if (report.artifact) return report.evaluation?.accepted ? "promotable" : "rejected";
-  if (report.evaluation) return report.evaluation.accepted ? "promotable" : "rejected";
   if (report.outcomes) return `${report.outcomes.filter((item) => item.accepted).length}/${report.outcomes.length} accepted`;
   if (report.proposals) return `${report.proposals.filter((item) => item.accepted).length}/${report.proposals.length} promotable`;
-  if (report.episodes || report.results) {
+  if (report.episodes) {
     const stats = summarize(report);
     return `${stats.successes}/${stats.episodes} success; ${stats.score} score`;
   }
-  if (report.families) return `${report.families.length} family report`;
+  if (report.families) return `${(report.families as unknown[]).length} family report`;
+  // module-patch evaluate reports use top-level accepted
+  if ("accepted" in report) return (report as { accepted?: boolean }).accepted ? "promotable" : "rejected";
   return "completed";
-}
-
-function rows(report: Report): Episode[] {
-  if (report.episodes) return report.episodes;
-  // results is the legacy variants shape (evolve-battery-return-* reports).
-  return (report.results ?? []).map((result) => ({
-    scenario: `generation-${result.generation + 1}`,
-    achieved: result.achieved,
-    steps: result.steps,
-    score: result.score,
-    ...(result.code ? { code: { attempts: 0, path: result.code } } : {}),
-    ...(result.reused ? { reused: result.reused } : {}),
-    ...(result.error ? { explorationError: result.error } : {}),
-  }));
 }
 
 function option(options: string[], name: string): string | undefined {
@@ -281,6 +261,7 @@ function positiveInteger(value: string, name: string): number {
 
 function usage(exitCode: number): never {
   console.log(`Evo — controlled capability-evolution experiments
+Run from the repository root.
 
 Usage:
   evo benchmark [workspace|families|all]       Run current deterministic benchmarks.
@@ -289,11 +270,13 @@ Usage:
   evo evolve [--iterations N] [--model ID]     Generate, evaluate, promote, and regress-test N artifacts.
   evo module [--attempts N] [--models IDs] [--from-scratch]
                                                Propose and evaluate a full TypeScript module patch.
+  evo evaluate <proposal.json>                 Evaluate an existing module-patch proposal file.
   evo challenge [--attempts N] [--models IDs]  Discover measurable unsolved scenarios.
-  evo list                                     List current and legacy experiment reports.
+  evo status                                   Show promoted state, archive, benchmarks, lock.
+  evo list                                     List experiment reports.
   evo show <run-id>                            Show report summary and token usage.
 
-Modern options:
+Options:
   artifact --model ID        Override CAPABILITY_ARTIFACT_MODEL.
   evolve --iterations N      Number of independent artifact proposals (default: 1).
   evolve --model ID          Use this model for every proposal in the cycle.
@@ -304,19 +287,25 @@ Modern options:
   challenge --models ID,ID   Override CHALLENGE_MODELS.
 
 Regime:
-  --blank-slate              Also accepted by benchmark/artifact/evolve/module/
-                             challenge. The engineered substrate defers every
-                             decision and no game hints reach the model, so all
-                             benchmark score comes from evolved capabilities.
-                             Do not mix regimes on one promoted store.
+  --blank-slate              Accepted by benchmark/artifact/evolve/module/challenge.
+                             The substrate defers every decision; the model prompt
+                             carries no game hints. All score comes from evolved
+                             capabilities. Do not mix regimes on one promoted store.
+
+Concurrency:
+  artifact, evolve, module, challenge, promote, and evaluate hold .evo/lock;
+  a second one fails immediately and names the holder.
+  benchmark, list, show, and status never lock.
 
 Reports:
-  artifact-evolve-* reports direct decision-capability proposals.
-  artifact-evolution-* reports controlled multi-iteration artifact cycles.
-  module-evolve-* reports complete TypeScript patch proposals.
-  challenge-discovery-* reports generated, measurable scenarios.
-  Legacy report files remain readable but cannot be resumed by this CLI.
-  IN, OUT, and REASON in 'evo list' are input, output, and reasoning tokens.
+  artifact-evolve-*      direct capability proposals.
+  artifact-evolution-*   multi-iteration artifact cycles.
+  module-evolve-*        TypeScript module patch proposals.
+  module-patch-*         manual module-patch evaluations.
+  challenge-discovery-*  generated measurable scenarios.
+  IN, OUT, REASON in 'evo list' are input, output, and reasoning tokens.
+
+Precedence: command-line flags > environment variables > .env > built-in defaults.
 `);
   process.exit(exitCode);
 }
