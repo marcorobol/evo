@@ -7,6 +7,7 @@ import { createEvolvingAgent } from "../src/agent-workspace/evolving-agent.js";
 import { findPath } from "../src/agent-workspace/navigation.js";
 import { HeatmapMemory } from "../src/agent-workspace/memory.js";
 import { capabilityArtifactSchema } from "../src/agent-workspace/capability-artifact.js";
+import { improves, type Fitness } from "../src/agent-workspace/fitness.js";
 import type { Tile } from "../src/domain.js";
 import { loadScenario } from "../src/scenario-loader.js";
 import { fileURLToPath } from "node:url";
@@ -42,6 +43,18 @@ test("blank-slate substrate defers every decision and scores nothing", async () 
   } finally {
     delete process.env.EVOLUTION_BLANK_SLATE;
   }
+});
+
+test("efficiency tie-breaks never promote an all-failing population", () => {
+  const allFailing = (overrides: Partial<Fitness>): Fitness => ({ episodes: 7, successRate: 0, meanScore: 0, worstScore: 0, meanSuccessfulSteps: null, meanBlockedActions: 0, meanWaits: 2, ...overrides });
+  // Fewer waits or blocked-but-active behavior must not count as improvement
+  // when nothing is solved (the degenerate blank-baseline case).
+  assert.equal(improves(allFailing({ meanWaits: 0, meanBlockedActions: 3 }), allFailing({})), false);
+  assert.equal(improves(allFailing({ meanWaits: 0 }), allFailing({})), false);
+  // Equally-successful populations are still ranked by efficiency.
+  const solving = (overrides: Partial<Fitness>): Fitness => ({ episodes: 7, successRate: 1, meanScore: 8, worstScore: 5, meanSuccessfulSteps: 7, meanBlockedActions: 1, meanWaits: 0.5, ...overrides });
+  assert.equal(improves(solving({ meanSuccessfulSteps: 5 }), solving({})), true);
+  assert.equal(improves(solving({ meanWaits: 0.2 }), solving({})), true);
 });
 
 test("a terminal score is not diagnosed as a navigation regression", () => {

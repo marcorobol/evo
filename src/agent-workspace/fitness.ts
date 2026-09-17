@@ -37,6 +37,10 @@ export function improves(candidate: Fitness, baseline: Fitness): boolean {
   if (candidate.meanScore > baseline.meanScore) return true;
   if (candidate.worstScore > baseline.worstScore) return true;
   if (candidate.successRate !== baseline.successRate || candidate.meanScore !== baseline.meanScore || candidate.worstScore !== baseline.worstScore) return false;
+  // Efficiency tie-breaks only rank equally-successful populations. Without a
+  // single success they would reward any activity over the baseline's
+  // inaction (e.g. blocked moves instead of waits) and promote noise.
+  if (candidate.successRate === 0) return false;
   if (candidate.meanSuccessfulSteps !== null && baseline.meanSuccessfulSteps !== null && candidate.meanSuccessfulSteps < baseline.meanSuccessfulSteps) return true;
   if (candidate.meanBlockedActions < baseline.meanBlockedActions) return true;
   return candidate.meanWaits < baseline.meanWaits;
