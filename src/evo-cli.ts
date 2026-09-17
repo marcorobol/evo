@@ -2,6 +2,8 @@ import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { capabilityArtifactSchema, compileCapabilityArtifact } from "./agent-workspace/capability-artifact.js";
 import { promoteCapability } from "./agent-workspace/capability-store.js";
+import { acquireLock, releaseLock } from "./evo-lock.js";
+import { printStatus } from "./evo-status.js";
 import { main as runWorkspaceBenchmarks } from "./run-workspace-benchmarks.js";
 import { main as runScenarioFamilies } from "./run-scenario-families.js";
 import { main as generateArtifact } from "./generate-capability-artifact.js";
@@ -45,17 +47,20 @@ try {
   switch (command) {
     case "list": await list(); break;
     case "show": if (!runID || runID.startsWith("--")) usage(1); else show(await load(runID)); break;
+    case "status": await printStatus(); break;
     case "benchmark": await benchmark(benchmarkTarget, commandOptions); break;
-    case "artifact": await artifact(commandOptions); break;
-    case "promote": if (!runID || runID.startsWith("--")) usage(1); else await promote(runID); break;
-    case "evolve": await evolve(commandOptions); break;
-    case "module": await modulePatch(commandOptions); break;
-    case "evaluate": if (!runID || runID.startsWith("--")) usage(1); else await evaluate(runID); break;
-    case "challenge": await challenge(commandOptions); break;
+    case "artifact": await locked("artifact", () => artifact(commandOptions)); break;
+    case "promote": if (!runID || runID.startsWith("--")) usage(1); else await locked("promote", () => promote(runID)); break;
+    case "evolve": await locked("evolve", () => evolve(commandOptions)); break;
+    case "module": await locked("module", () => modulePatch(commandOptions)); break;
+    case "evaluate": if (!runID || runID.startsWith("--")) usage(1); else await locked("evaluate", () => evaluate(runID)); break;
+    case "challenge": await locked("challenge", () => challenge(commandOptions)); break;
     default: usage(command === "help" ? 0 : 1);
   }
 } catch (error) {
-  console.error(`[evo] command failed: ${error instanceof Error ? error.message : String(error)}`);
+  const lines = (error instanceof Error ? error.message : String(error)).split("\n");
+  console.error(`[evo] ${lines[0]}`);
+  for (const line of lines.slice(1)) console.error(`       ${line}`);
   process.exitCode = 1;
 }
 
@@ -190,6 +195,11 @@ async function challenge(options: string[]): Promise<void> {
     ...(attemptsRaw ? { attempts: positiveInteger(attemptsRaw, "--attempts") } : {}),
     ...(modelsRaw ? { models: modelsRaw.split(",").map((m) => m.trim()).filter(Boolean) } : {}),
   }));
+}
+
+async function locked(command: string, fn: () => Promise<void>): Promise<void> {
+  await acquireLock(command);
+  try { await fn(); } finally { await releaseLock(); }
 }
 
 function setExitCode(code: number): void { if (code !== 0) process.exitCode = code; }
