@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { capabilityArtifactSchema, compileCapabilityArtifact, type CapabilityArtifact } from "./capability-artifact.js";
 import type { DecisionCapability } from "./capability-registry.js";
 
@@ -11,7 +11,7 @@ export async function loadDiscoveredCapabilities(): Promise<DecisionCapability[]
     return raw.capabilities.map((item) => compileCapabilityArtifact(capabilityArtifactSchema.parse(item)));
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
-    throw error;
+    throw new Error(`The discovered capability registry is invalid and was not loaded: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -21,5 +21,7 @@ export async function promoteCapability(artifact: CapabilityArtifact): Promise<v
   let existing: CapabilityArtifact[] = [];
   try { const raw = JSON.parse(await readFile(activePath, "utf8")) as { capabilities?: unknown }; existing = Array.isArray(raw.capabilities) ? raw.capabilities.map((item) => capabilityArtifactSchema.parse(item)) : []; }
   catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
-  await writeFile(activePath, `${JSON.stringify({ version: 1, capabilities: [artifact, ...existing.filter((item) => item.id !== artifact.id)] }, null, 2)}\n`);
+  const tempPath = `${activePath}.tmp`;
+  await writeFile(tempPath, `${JSON.stringify({ version: 1, capabilities: [artifact, ...existing.filter((item) => item.id !== artifact.id)] }, null, 2)}\n`);
+  await rename(tempPath, activePath);
 }

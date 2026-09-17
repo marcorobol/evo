@@ -34,4 +34,4 @@ setInterval(async () => {
   } finally {
     executing = false;
   }
-}, 250);
+}, Number(process.env.LIVE_ACTION_INTERVAL_MS ?? 250));

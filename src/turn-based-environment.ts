@@ -169,7 +169,8 @@ export class TurnBasedEnvironment {
       this.agent = { ...this.agent, score: this.agent.score + earned };
     } else {
       for (const parcel of carrying) {
-        this.parcels.set(parcel.id, { ...parcel, x: this.agent.x, y: this.agent.y, carriedBy: undefined });
+        const { carriedBy: _dropped, ...rest } = parcel;
+        this.parcels.set(parcel.id, { ...rest, x: this.agent.x, y: this.agent.y });
       }
     }
     if (!this.spendEnergy()) return this.result(false, "blocked", "The putdown exhausted the agent's energy.");

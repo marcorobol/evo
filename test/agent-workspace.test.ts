@@ -7,6 +7,7 @@ import { createEvolvingAgent } from "../src/agent-workspace/evolving-agent.js";
 import { findPath } from "../src/agent-workspace/navigation.js";
 import { HeatmapMemory } from "../src/agent-workspace/memory.js";
 import { capabilityArtifactSchema } from "../src/agent-workspace/capability-artifact.js";
+import { improves, type Fitness } from "../src/agent-workspace/fitness.js";
 import type { Tile } from "../src/domain.js";
 import { loadScenario } from "../src/scenario-loader.js";
 import { fileURLToPath } from "node:url";
@@ -27,6 +28,33 @@ test("workspace agent solves direct delivery and produces no bottleneck", async 
   assert.equal(episode.achieved, true);
   assert.equal(episode.score, 5);
   assert.deepEqual(diagnose(episode), []);
+});
+
+test("blank-slate substrate defers every decision and scores nothing", async () => {
+  process.env.EVOLUTION_BLANK_SLATE = "1";
+  try {
+    const path = fileURLToPath(new URL("../scenarios/simple-delivery.v1.json", import.meta.url));
+    const { metadata, scenario } = await loadScenario(path);
+    const episode = runBenchmark(metadata.name, scenario, createEvolvingAgent());
+    assert.equal(episode.achieved, false);
+    assert.equal(episode.score, 0);
+    assert.ok(episode.decisions.every((entry) => entry.action.kind === "wait"));
+    assert.equal(episode.decisions[0]?.module, "substrate");
+  } finally {
+    delete process.env.EVOLUTION_BLANK_SLATE;
+  }
+});
+
+test("efficiency tie-breaks never promote an all-failing population", () => {
+  const allFailing = (overrides: Partial<Fitness>): Fitness => ({ episodes: 7, successRate: 0, meanScore: 0, worstScore: 0, meanSuccessfulSteps: null, meanBlockedActions: 0, meanWaits: 2, ...overrides });
+  // Fewer waits or blocked-but-active behavior must not count as improvement
+  // when nothing is solved (the degenerate blank-baseline case).
+  assert.equal(improves(allFailing({ meanWaits: 0, meanBlockedActions: 3 }), allFailing({})), false);
+  assert.equal(improves(allFailing({ meanWaits: 0 }), allFailing({})), false);
+  // Equally-successful populations are still ranked by efficiency.
+  const solving = (overrides: Partial<Fitness>): Fitness => ({ episodes: 7, successRate: 1, meanScore: 8, worstScore: 5, meanSuccessfulSteps: 7, meanBlockedActions: 1, meanWaits: 0.5, ...overrides });
+  assert.equal(improves(solving({ meanSuccessfulSteps: 5 }), solving({})), true);
+  assert.equal(improves(solving({ meanWaits: 0.2 }), solving({})), true);
 });
 
 test("a terminal score is not diagnosed as a navigation regression", () => {
@@ -55,7 +83,7 @@ test("frontier-only exploration exposes a dead-end bottleneck", async () => {
       const visited = new Set(context.memory.map((item) => `${item.x},${item.y}`));
       const next = [{ direction: "down" as const, x: o.me.x, y: o.me.y + 1 }, { direction: "right" as const, x: o.me.x + 1, y: o.me.y }]
         .find((item) => !visited.has(`${item.x},${item.y}`));
-      return next ? { action: { kind: "move", direction: next.direction }, confidence: 1, rationale: "frontier only" } : undefined;
+      return next ? { action: { kind: "move", direction: next.direction }, confidence: 1, rationale: "frontier only", module: "frontier-only-test" } : undefined;
     }, extensionModule: "frontier-only-test",
   }), 1);
   assert.equal(episode.achieved, false);
