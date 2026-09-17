@@ -14,18 +14,38 @@ dal `DeliverooGateway` di `npm run start:deliveroo` e
 
 ## Avvio
 
-1. Esegui `npm install`, poi `npm link` (o `bun link`) dalla root per rendere
-   `evo` disponibile nella shell. Senza link: `npm run cli -- <comando>`.
-2. Per l'integrazione opzionale con il gioco originale, avvia Deliveroo.js,
-   copia `.env.example` in `.env` e usa `npm run start:deliveroo`.
+```bash
+npm install
+npm link          # rende 'evo' disponibile nella shell (alternativa: bun link)
+                  # senza link: npm run cli -- <comando>
+cp .env.example .env   # inserisci OPENAI_API_KEY per i comandi LLM
+evo status        # verifica lo stato corrente dell'esperimento
+evo benchmark all # baseline iniziale (non richiede chiave API)
+```
 
-Ogni azione viene registrata in `traces/` come JSONL. La policy iniziale cerca
-parcel visibili, li raccoglie, calcola un percorso sulla mappa conosciuta e li
-porta alla tile di consegna.
+I comandi locali (`evo benchmark`, `evo list`, `evo status`) non richiedono
+una chiave API. I comandi LLM (`evo artifact`, `evo evolve`, `evo module`,
+`evo challenge`) usano il gateway UniTn LiteLLM configurato in `.env`.
 
-I comandi di evoluzione LLM usano il gateway UniTn LiteLLM configurato in
-`.env`. I comandi locali (`evo benchmark`, `evo list`, `evo status`) non
-richiedono una chiave API.
+Per l'integrazione opzionale con il gioco originale Deliveroo.js:
+`npm run start:deliveroo` o `npm run play:live:evolving`. Le azioni vengono
+registrate in `traces/` come JSONL.
+
+## Reset sperimentale
+
+Per ripartire da zero (stato pulito, nessuna capability promossa):
+
+```bash
+rm -rf agent-workspace/discovered-capabilities/ \
+       agent-workspace/capability-archive/ \
+       reports/ scenarios/generated/ .module-sandbox/
+evo benchmark all --blank-slate   # verifica il punto-zero (0/7, score 0)
+evo evolve --blank-slate --iterations 5
+```
+
+`agent-workspace/promoted/` (storia legacy) resta su disco come backup: se
+vuoi recuperare lo stack precedente usa `bun run src/migrate-promoted-policies.ts`.
+Non mescolare regimi (`--blank-slate` vs standard) sullo stesso store promosso.
 
 ## Configurazione
 
