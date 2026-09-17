@@ -7,5 +7,7 @@ agent-workspace/capability-archive/
 agent-workspace/discovered-capabilities/
 agent-workspace/promoted/
 scenarios/generated/
-work/repos/
+outputs/
+work/
 .module-sandbox/
+.evo/
