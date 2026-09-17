@@ -13,20 +13,15 @@
     "build": "tsc --noEmit",
     "cli": "bun run src/evo-cli.ts",
     "test": "node --import tsx --test test/*.test.ts",
-    "start": "node --import tsx src/local-demo.ts",
     "start:deliveroo": "node --import tsx src/index.ts",
     "play:live:evolving": "bun run src/play-live-evolving.ts",
     "benchmark:workspace": "bun run src/run-workspace-benchmarks.ts",
     "benchmark:families": "bun run src/run-scenario-families.ts",
     "evolve:module-workspace": "bun run src/evolve-module-workspace.ts",
     "evolve:artifact": "bun run src/generate-capability-artifact.ts",
-    "discover:challenge:opencode": "bun run src/discover-challenge-opencode.ts",
-    "probe:opencode": "bun run src/opencode-sdk-probe.ts",
-    "probe:opencode:qwen": "bun run src/opencode-sdk-qwen-probe.ts",
-    "reproduce:opencode:plan": "bun run src/reproduce-opencode-plan.ts"
+    "discover:challenge:opencode": "bun run src/discover-challenge-opencode.ts"
   },
   "dependencies": {
-    "@opencode-ai/sdk": "^1.18.27",
     "@unitn-asa/deliveroo-js-sdk": "^1.3.10",
     "zod": "^4.0.0"
   },
